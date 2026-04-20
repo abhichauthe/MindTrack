@@ -50,14 +50,14 @@ defineProps({ active: { type: String, default: '' } })
 const router        = useRouter()
 const authStore     = useAuthStore()
 const notifStore    = useNotificationStore()
-
 const navItems = [
-  { key: 'dashboard',     label: 'Habits',        icon: '◧', to: '/dashboard'     },
-  { key: 'focus',         label: 'Focus Timer',   icon: '◔', to: '/focus'         },
-  { key: 'journal',       label: 'Journal',       icon: '◫', to: '/journal'       },
-  { key: 'notifications', label: 'Notifications', icon: '◉', to: '/notifications' },
+  { key: 'dashboard',     label: 'Habits',         icon: '◧', to: '/dashboard'      },
+  { key: 'focus',         label: 'Focus Timer',    icon: '◔', to: '/focus'          },
+  { key: 'journal',       label: 'Journal',        icon: '◫', to: '/journal'        },
+  { key: 'gamification',  label: 'Progress',       icon: '⭐', to: '/gamification'   },
+  { key: 'weekly',        label: 'Weekly Review',  icon: '📊', to: '/weekly-review'  }, // ← ADD
+  { key: 'notifications', label: 'Notifications',  icon: '◉', to: '/notifications'  },
 ]
-
 const initials = computed(() => (authStore.username || '').slice(0, 2).toUpperCase())
 
 function handleLogout() {

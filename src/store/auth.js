@@ -6,14 +6,14 @@ const STORAGE_KEY = 'mindtrack_user'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
-  const user = ref(null)
+  const user    = ref(null)
   const loading = ref(false)
-  const error = ref(null)
+  const error   = ref(null)
 
   // Getters
   const isLoggedIn = computed(() => !!user.value)
-  const userId = computed(() => user.value?.userId)
-  const username = computed(() => user.value?.username)
+  const userId     = computed(() => user.value?.userId)
+  const username   = computed(() => user.value?.username)
 
   // Actions
   function loadFromStorage() {
@@ -30,10 +30,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(payload) {
     loading.value = true
-    error.value = null
+    error.value   = null
     try {
+      // ✅ Call the API but do NOT persist the user
+      // ✅ Just return the data — let the view handle the redirect
       const { data } = await authService.register(payload)
-      persistUser(data)
       return data
     } catch (e) {
       error.value = e.message
@@ -45,10 +46,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(payload) {
     loading.value = true
-    error.value = null
+    error.value   = null
     try {
       const { data } = await authService.login(payload)
-      persistUser(data)
+      persistUser(data) // ← login DOES persist, register does NOT
       return data
     } catch (e) {
       error.value = e.message

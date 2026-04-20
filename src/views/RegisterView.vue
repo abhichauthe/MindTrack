@@ -8,11 +8,14 @@
     <div class="auth-card card">
       <div class="auth-header">
         <h1>Start tracking</h1>
-        <p class="text-secondary text-sm mt-1">Create your account to begin building habits</p>
+        <p class="text-secondary text-sm mt-1">
+          Create your account to begin building habits
+        </p>
       </div>
 
       <div class="divider" />
 
+      <!-- Error alert -->
       <div v-if="authStore.error" class="alert alert-error" style="margin-bottom:16px">
         {{ authStore.error }}
       </div>
@@ -77,7 +80,7 @@ import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 
-const router = useRouter()
+const router    = useRouter()
 const authStore = useAuthStore()
 
 const form = reactive({ username: '', email: '', password: '' })
@@ -86,8 +89,13 @@ async function handleRegister() {
   authStore.clearError()
   try {
     await authStore.register(form)
-    router.push({ name: 'Dashboard' })
-  } catch (_) {}
+
+    // ✅ Redirect to login page with success message query param
+    router.push({ name: 'Login', query: { registered: 'true' } })
+
+  } catch (_) {
+    // error is already set in the store
+  }
 }
 </script>
 

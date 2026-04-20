@@ -11,7 +11,8 @@ const routes = [
   { path: '/focus',         name: 'Focus',         component: () => import('@/views/FocusView.vue'),         meta: { requiresAuth: true } },
   { path: '/journal',       name: 'Journal',       component: () => import('@/views/JournalView.vue'),       meta: { requiresAuth: true } },
   { path: '/notifications', name: 'Notifications', component: () => import('@/views/NotificationsView.vue'), meta: { requiresAuth: true } },
-
+{ path: '/gamification', name: 'Gamification', component: () => import('@/views/GamificationView.vue'), meta: { requiresAuth: true } },  
+{ path: '/weekly-review', name: 'WeeklyReview', component: () => import('@/views/WeeklyReviewView.vue'), meta: { requiresAuth: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ]
 

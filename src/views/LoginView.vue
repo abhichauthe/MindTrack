@@ -8,12 +8,20 @@
     <div class="auth-card card">
       <div class="auth-header">
         <h1>Welcome back</h1>
-        <p class="text-secondary text-sm mt-1">Sign in to continue your discipline streak</p>
+        <p class="text-secondary text-sm mt-1">
+          Sign in to continue your discipline streak
+        </p>
       </div>
 
       <div class="divider" />
 
-      <div v-if="authStore.error" class="alert alert-error mt-2" style="margin-bottom:16px">
+      <!-- ✅ Success message shown after registration -->
+      <div v-if="justRegistered" class="alert alert-success" style="margin-bottom:16px">
+        ✅ Account created successfully! Please sign in to continue.
+      </div>
+
+      <!-- Error alert -->
+      <div v-if="authStore.error" class="alert alert-error" style="margin-bottom:16px">
         {{ authStore.error }}
       </div>
 
@@ -62,21 +70,27 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 
-const router = useRouter()
+const router    = useRouter()
+const route     = useRoute()
 const authStore = useAuthStore()
 
 const form = reactive({ email: '', password: '' })
+
+// ✅ Shows success banner if redirected from registration
+const justRegistered = computed(() => route.query.registered === 'true')
 
 async function handleLogin() {
   authStore.clearError()
   try {
     await authStore.login(form)
     router.push({ name: 'Dashboard' })
-  } catch (_) {}
+  } catch (_) {
+    // error is already set in the store
+  }
 }
 </script>
 
@@ -100,20 +114,14 @@ async function handleLogin() {
   letter-spacing: -0.03em;
 }
 
-.brand-icon {
-  color: var(--accent);
-  font-size: 24px;
-}
+.brand-icon { color: var(--accent); font-size: 24px; }
 
 .auth-card {
   width: 100%;
   max-width: 400px;
 }
 
-.auth-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-}
+.auth-header h1 { font-size: 22px; font-weight: 700; }
 
 .auth-form {
   display: flex;
