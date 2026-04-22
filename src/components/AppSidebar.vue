@@ -1,142 +1,162 @@
 <template>
   <aside class="sidebar">
-    <div class="sidebar-brand">
-      <span class="brand-icon">◈</span>
-      <span class="brand-name">MindTrack</span>
-    </div>
+    <!-- Brand mark -->
+    <div class="brand">◈</div>
 
-    <nav class="sidebar-nav">
+    <!-- Nav items -->
+    <nav class="nav">
       <RouterLink
         v-for="item in navItems"
-        :key="item.name"
+        :key="item.key"
         :to="item.to"
         class="nav-item"
         :class="{ active: active === item.key }"
+        :title="item.label"
       >
         <span class="nav-icon">{{ item.icon }}</span>
-        {{ item.label }}
-        <span
-          v-if="item.key === 'notifications' && notifStore.unreadCount > 0"
-          class="nav-badge"
-        >
-          {{ notifStore.unreadCount }}
+        <span class="nav-badge" v-if="item.key === 'notifications' && unreadCount > 0">
+          {{ unreadCount > 9 ? '9+' : unreadCount }}
         </span>
       </RouterLink>
     </nav>
 
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar">{{ initials }}</div>
-        <div>
-          <div class="user-name">{{ authStore.username }}</div>
-          <div class="text-muted text-sm">{{ authStore.user?.email }}</div>
-        </div>
-      </div>
-      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" @click="handleLogout">
-        Sign out
-      </button>
-    </div>
+    <!-- Logout -->
+    <button class="logout-btn" @click="logout" title="Logout">⇥</button>
   </aside>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
-import { useNotificationStore } from '@/store/notifications'
+import apiClient from '@/services/apiClient'
 
 defineProps({ active: { type: String, default: '' } })
 
-const router        = useRouter()
-const authStore     = useAuthStore()
-const notifStore    = useNotificationStore()
+const router      = useRouter()
+const authStore   = useAuthStore()
+const unreadCount = ref(0)
+
+async function fetchUnreadCount() {
+  try {
+    const { data } = await apiClient.get('/notifications/unread/count')
+    // Backend returns either a number or { count: number }
+    unreadCount.value = typeof data === 'number' ? data : (data.count ?? 0)
+  } catch (_) {
+    // Silently fail — badge just won't show
+  }
+}
+
 const navItems = [
   { key: 'dashboard',     label: 'Habits',         icon: '◧', to: '/dashboard'      },
   { key: 'focus',         label: 'Focus Timer',    icon: '◔', to: '/focus'          },
   { key: 'journal',       label: 'Journal',        icon: '◫', to: '/journal'        },
+  { key: 'timetable',     label: 'Timetable',      icon: '⊞', to: '/timetable'      },
   { key: 'gamification',  label: 'Progress',       icon: '⭐', to: '/gamification'   },
-  { key: 'weekly',        label: 'Weekly Review',  icon: '📊', to: '/weekly-review'  }, // ← ADD
+  { key: 'weekly',        label: 'Weekly Review',  icon: '📊', to: '/weekly-review'  },
+  { key: 'discipline', label: 'Discipline', icon: '🧠', to: '/discipline' },
   { key: 'notifications', label: 'Notifications',  icon: '◉', to: '/notifications'  },
 ]
-const initials = computed(() => (authStore.username || '').slice(0, 2).toUpperCase())
 
-function handleLogout() {
+function logout() {
   authStore.logout()
   router.push({ name: 'Login' })
 }
 
-onMounted(() => notifStore.fetchAll())
+onMounted(() => {
+  fetchUnreadCount()
+})
 </script>
 
 <style scoped>
 .sidebar {
-  width: 240px;
+  width: 56px;
   flex-shrink: 0;
+  background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
+  align-items: center;
+  padding: 16px 0;
+  height: 100vh;
   position: sticky;
   top: 0;
-  height: 100vh;
 }
 
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 18px;
+.brand {
+  font-size: 20px;
+  color: var(--accent);
+  margin-bottom: 24px;
   font-weight: 800;
-  letter-spacing: -0.03em;
-  padding: 0 8px;
-  margin-bottom: 32px;
 }
-.brand-icon { color: var(--accent); font-size: 22px; }
 
-.sidebar-nav {
+.nav {
   display: flex;
   flex-direction: column;
   gap: 4px;
   flex: 1;
+  width: 100%;
+  align-items: center;
 }
 
 .nav-item {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-weight: 600;
+  justify-content: center;
+  font-size: 16px;
   color: var(--text-secondary);
   text-decoration: none;
   transition: all var(--transition);
+  position: relative;
 }
-.nav-item:hover  { background: var(--bg-hover); color: var(--text-primary); }
-.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+.nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
-.nav-icon { font-size: 16px; }
+.nav-icon { line-height: 1; }
 
 .nav-badge {
-  margin-left: auto;
+  position: absolute;
+  top: 4px;
+  right: 4px;
   background: var(--accent);
   color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 999px;
+  font-size: 9px;
   font-family: var(--font-mono);
+  border-radius: 8px;
+  min-width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
 }
 
-.sidebar-footer { border-top: 1px solid var(--border); padding-top: 16px; }
-
-.user-pill { display: flex; align-items: center; gap: 10px; }
-.user-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--accent-dim); color: var(--accent);
-  font-size: 13px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+.logout-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  margin-top: auto;
 }
-.user-name { font-size: 14px; font-weight: 600; }
+.logout-btn:hover {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
 </style>
