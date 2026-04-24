@@ -51,10 +51,11 @@ const navItems = [
   { key: 'dashboard',     label: 'Habits',         icon: '◧', to: '/dashboard'      },
   { key: 'focus',         label: 'Focus Timer',    icon: '◔', to: '/focus'          },
   { key: 'journal',       label: 'Journal',        icon: '◫', to: '/journal'        },
-  { key: 'timetable',     label: 'Timetable',      icon: '⊞', to: '/timetable'      },
+  { key: 'plan',          label: 'Monthly Plan',   icon: '📅', to: '/plan'           }, // ← ADD
+  { key: 'discipline',    label: 'Discipline',     icon: '🎯', to: '/discipline'     },
+  { key: 'timetable',     label: 'Timetable',      icon: '🗓', to: '/timetable'      },
   { key: 'gamification',  label: 'Progress',       icon: '⭐', to: '/gamification'   },
   { key: 'weekly',        label: 'Weekly Review',  icon: '📊', to: '/weekly-review'  },
-  { key: 'discipline', label: 'Discipline', icon: '🧠', to: '/discipline' },
   { key: 'notifications', label: 'Notifications',  icon: '◉', to: '/notifications'  },
 ]
 

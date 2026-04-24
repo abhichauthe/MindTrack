@@ -61,6 +61,7 @@ const routes = [
   },
   { path: '/discipline', name: 'Discipline', component: () => import('@/views/DisciplineView.vue'), meta: { requiresAuth: true } },
 
+  { path: '/plan', name: 'Plan', component: () => import('@/views/PlanView.vue'), meta: { requiresAuth: true } },
   // ── Default redirect ───────────────────────────────────────────────
   {
     path: '/',

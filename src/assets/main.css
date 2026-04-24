@@ -47,6 +47,60 @@ body {
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
 .mono { font-family: var(--font-mono); }
 
+/* ========================================
+   LAYOUT SYSTEM
+   This controls how .dashboard and .main
+   work together across every single view.
+   
+   The structure in every view is:
+   
+   <div class="dashboard">       ← full width flex row
+     <AppSidebar />              ← fixed width sidebar
+     <main class="main">         ← everything to the right
+       ... your page content ... 
+     </main>
+   </div>
+   
+   To center the content, .main needs:
+   1. flex: 1         → takes all remaining space after sidebar
+   2. max-width       → limits how wide content can get
+   3. margin: 0 auto  → splits leftover space equally left and right
+   ======================================== */
+
+/* The outer wrapper — full viewport, sidebar + content side by side */
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* The main content area — centered within the space after the sidebar */
+.main {
+  flex: 1;                    /* take all space to the right of sidebar */
+  padding: 32px 40px;         /* breathing room around content */
+  max-width: 960px;           /* content never gets too wide on large screens */
+  margin: 0 auto;             /* THIS is what centers it — equal space on both sides */
+  width: 100%;                /* needed so max-width has something to limit */
+  overflow-y: auto;           /* scroll within main if content overflows */
+}
+
+/* ========================================
+   WHY margin: 0 auto WORKS
+   
+   Imagine the space after the sidebar is 1200px wide.
+   Your content max-width is 960px.
+   That leaves 240px of leftover space.
+   
+   margin: 0 auto splits that 240px equally:
+   120px on the left + 960px content + 120px on the right
+   
+   Result: content sits in the middle.
+   
+   Without margin: 0 auto:
+   0px on the left + 960px content + 240px on the right
+   
+   Result: content hugs the left edge. (Your current problem)
+   ======================================== */
+
 /* Buttons */
 .btn {
   display: inline-flex;
@@ -147,9 +201,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; letter-spac
   font-weight: 600;
   font-family: var(--font-mono);
 }
-.badge-green { background: var(--green-dim); color: var(--green); }
+.badge-green  { background: var(--green-dim); color: var(--green); }
 .badge-accent { background: var(--accent-dim); color: var(--accent); }
-.badge-muted { background: var(--bg-hover); color: var(--text-muted); }
+.badge-muted  { background: var(--bg-hover); color: var(--text-muted); }
 
 /* Alert */
 .alert {
@@ -158,7 +212,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; letter-spac
   font-size: 14px;
   border: 1px solid;
 }
-.alert-error { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+.alert-error   { background: var(--red-dim);   border-color: var(--red);   color: var(--red); }
 .alert-success { background: var(--green-dim); border-color: var(--green); color: var(--green); }
 
 /* Divider */
@@ -169,22 +223,22 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; letter-spac
 }
 
 /* Layout helpers */
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
+.flex            { display: flex; }
+.flex-col        { flex-direction: column; }
+.items-center    { align-items: center; }
 .justify-between { justify-content: space-between; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-.gap-4 { gap: 16px; }
-.gap-6 { gap: 24px; }
-.mt-1 { margin-top: 4px; }
-.mt-2 { margin-top: 8px; }
-.mt-4 { margin-top: 16px; }
-.text-sm { font-size: 13px; }
-.text-muted { color: var(--text-muted); }
+.gap-2  { gap: 8px; }
+.gap-3  { gap: 12px; }
+.gap-4  { gap: 16px; }
+.gap-6  { gap: 24px; }
+.mt-1   { margin-top: 4px; }
+.mt-2   { margin-top: 8px; }
+.mt-4   { margin-top: 16px; }
+.text-sm        { font-size: 13px; }
+.text-muted     { color: var(--text-muted); }
 .text-secondary { color: var(--text-secondary); }
-.text-accent { color: var(--accent); }
-.text-green { color: var(--green); }
+.text-accent    { color: var(--accent); }
+.text-green     { color: var(--green); }
 
 /* Page fade-in */
 .page-enter-active { animation: pageFade 0.25s ease; }
