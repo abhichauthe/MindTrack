@@ -46,17 +46,17 @@ async function fetchUnreadCount() {
     // Silently fail — badge just won't show
   }
 }
-
 const navItems = [
-  { key: 'dashboard',     label: 'Habits',         icon: '◧', to: '/dashboard'      },
-  { key: 'focus',         label: 'Focus Timer',    icon: '◔', to: '/focus'          },
-  { key: 'journal',       label: 'Journal',        icon: '◫', to: '/journal'        },
-  { key: 'plan',          label: 'Monthly Plan',   icon: '📅', to: '/plan'           }, // ← ADD
-  { key: 'discipline',    label: 'Discipline',     icon: '🎯', to: '/discipline'     },
-  { key: 'timetable',     label: 'Timetable',      icon: '🗓', to: '/timetable'      },
-  { key: 'gamification',  label: 'Progress',       icon: '⭐', to: '/gamification'   },
-  { key: 'weekly',        label: 'Weekly Review',  icon: '📊', to: '/weekly-review'  },
-  { key: 'notifications', label: 'Notifications',  icon: '◉', to: '/notifications'  },
+  { key: 'dashboard',     label: 'Habits',           icon: '◧', to: '/dashboard'      },
+  { key: 'focus',         label: 'Focus Timer',      icon: '◔', to: '/focus'          },
+  { key: 'journal',       label: 'Journal',          icon: '◫', to: '/journal'        },
+  { key: 'plan',          label: 'Monthly Plan',     icon: '📅', to: '/plan'           },
+  { key: 'discipline',    label: 'Discipline',       icon: '🎯', to: '/discipline'     },
+  { key: 'timetable',     label: 'Timetable',        icon: '🗓', to: '/timetable'      },
+  { key: 'analytics',     label: 'Analytics',        icon: '📊', to: '/analytics'      }, // ← ADD
+  { key: 'gamification',  label: 'Progress',         icon: '⭐', to: '/gamification'   },
+  { key: 'weekly',        label: 'Weekly Review',    icon: '📋', to: '/weekly-review'  },
+  { key: 'notifications', label: 'Notifications',    icon: '◉', to: '/notifications'  },
 ]
 
 function logout() {

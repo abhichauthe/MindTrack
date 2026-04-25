@@ -70,7 +70,9 @@ const routes = [
   {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard'
-  }
+  },
+  { path: '/analytics', name: 'Analytics', component: () => import('@/views/AnalyticsView.vue'), meta: { requiresAuth: true } },
+
 ]
 
 const router = createRouter({
