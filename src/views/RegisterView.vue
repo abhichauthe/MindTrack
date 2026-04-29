@@ -34,6 +34,23 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label">Mobile number</label>
+          <input
+            v-model="form.phoneNumber"
+            type="tel"
+            inputmode="tel"
+            class="form-input"
+            placeholder="10-digit Indian number"
+            required
+            autocomplete="tel"
+            @input="onPhoneInput"
+          />
+          <div v-if="phoneTouched && !isPhoneValid" class="text-sm" style="color:var(--red)">
+            Enter a valid Indian mobile number (10 digits starting 6–9).
+          </div>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Email</label>
           <input
             v-model="form.email"
@@ -52,7 +69,7 @@
             class="form-input"
             placeholder="••••••••"
             required
-            minlength="6"
+            minlength="8"
           />
         </div>
 
@@ -60,7 +77,7 @@
           type="submit"
           class="btn btn-primary"
           style="width:100%; margin-top:8px"
-          :disabled="authStore.loading"
+          :disabled="authStore.loading || !isPhoneValid"
         >
           <span v-if="authStore.loading" class="spinner" />
           <span v-else>Create Account</span>
@@ -76,23 +93,50 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 
 const router    = useRouter()
 const authStore = useAuthStore()
 
-const form = reactive({ username: '', email: '', password: '' })
+// ✅ Changed 'phone' -> 'phoneNumber' to match backend DTO
+const form = reactive({ username: '', phoneNumber: '', email: '', password: '' })
+
+const phoneTouched = ref(false)
+const normalizedPhone = computed(() => normalizeIndianPhone(form.phoneNumber))
+const isPhoneValid = computed(() => /^[6-9]\d{9}$/.test(normalizedPhone.value))
+
+function normalizeIndianPhone(input) {
+  const raw = String(input || '')
+    .replace(/\s+/g, '')
+    .replace(/-/g, '')
+    .replace(/[()]/g, '')
+  let digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('91') && digits.length > 10) digits = digits.slice(2)
+  if (digits.length > 10) digits = digits.slice(-10)
+  return digits
+}
+
+function onPhoneInput() {
+  phoneTouched.value = true
+  // ✅ Normalize and write back into phoneNumber
+  const digits = normalizeIndianPhone(form.phoneNumber)
+  form.phoneNumber = digits
+}
 
 async function handleRegister() {
   authStore.clearError()
+  phoneTouched.value = true
+  if (!isPhoneValid.value) return
+  if (String(form.password || '').length < 8) {
+    authStore.error = 'Password must be at least 8 characters.'
+    return
+  }
   try {
+    // ✅ form now has 'phoneNumber' so authService.register() won't strip it
     await authStore.register(form)
-
-    // ✅ Redirect to login page with success message query param
     router.push({ name: 'Login', query: { registered: 'true' } })
-
   } catch (_) {
     // error is already set in the store
   }

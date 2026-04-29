@@ -4,86 +4,91 @@
 
     <main class="timetable-main">
 
-      <!-- ── Header ───────────────────────────────────────────────── -->
+      <!-- ── Header ─────────────────────────────────────────────── -->
       <div class="tt-header">
         <div class="tt-header-left">
           <h2 class="tt-title">Timetable</h2>
           <div class="date-nav">
             <button class="icon-btn" @click="shiftDay(-1)" title="Previous day">‹</button>
             <span class="current-date mono">{{ formattedDate }}</span>
-            <button class="icon-btn" @click="shiftDay(1)" title="Next day">›</button>
-            <button class="today-btn" @click="goToToday" v-if="!isToday">Today</button>
+            <button class="icon-btn" @click="shiftDay(1)"  title="Next day">›</button>
+            <button class="today-btn" v-if="!isToday" @click="goToToday">Today</button>
           </div>
         </div>
         <div class="tt-header-right">
-          <div class="completion-pill" v-if="store.totalBlocks > 0">
+          <div class="completion-pill" v-if="totalBlocks > 0">
             <div class="completion-bar-wrap">
-              <div class="completion-bar" :style="{ width: store.completionPct + '%' }" />
+              <div class="completion-bar" :style="{ width: completionPct + '%' }" />
             </div>
-            <span class="mono completion-text">
-              {{ store.completedBlocks }}/{{ store.totalBlocks }} done
-            </span>
+            <span class="mono completion-text">{{ completedBlocks }}/{{ totalBlocks }} done</span>
           </div>
-          <button class="btn btn-primary btn-sm" @click="store.openCreateModal()">
+          <!-- FIX 1: Use openNewRecurringModal() instead of direct showRecurringModal = true -->
+          <button class="btn btn-ghost btn-sm" @click="openNewRecurringModal()">
+            🔁 Recurring
+          </button>
+          <button class="btn btn-primary btn-sm" @click="openCreateModal()">
             + Add block
           </button>
         </div>
       </div>
 
-      <!-- ── Body ──────────────────────────────────────────────────── -->
+      <!-- ── Body ───────────────────────────────────────────────── -->
       <div class="tt-body">
 
-        <!-- ── Timeline ────────────────────────────────────────────── -->
+        <!-- ── Timeline ─────────────────────────────────────────── -->
         <div class="timeline-wrap">
           <div class="timeline" ref="timelineEl">
 
-            <div v-if="store.loading" class="timeline-loading">
+            <div v-if="loadingSchedule" class="timeline-loading">
               <div class="spinner" />
               <span class="text-secondary text-sm">Loading schedule…</span>
             </div>
 
             <template v-else>
-              <!-- Current time indicator -->
-              <div
-                class="now-line"
-                v-if="isToday"
-                :style="{ top: nowLineTop + 'px' }"
-              >
+              <!-- Now line -->
+              <div class="now-line" v-if="isToday"
+                   :style="{ top: nowLineTop + 'px' }">
                 <div class="now-dot" />
                 <div class="now-label mono">{{ currentTimeStr }}</div>
               </div>
 
-              <!-- 24 Hour rows -->
+              <!-- 24 hour rows -->
               <div
                 v-for="hour in visibleHours"
                 :key="hour"
                 class="hour-row"
-                :class="{ 'hour-row--past': isPastHour(hour) }"
-                @dragover.prevent
-                @drop="onDropToHour($event, hour)"
+                :class="{
+                  'hour-row--past': isPastHour(hour),
+                  'hour-row--hover': dragHoverHour === hour
+                }"
+                @dragover.prevent="onDragOverHour(hour)"
+                @dragleave="onDragLeaveHour"
+                @drop.prevent="onDropToHour($event, hour)"
               >
                 <div class="hour-label mono">{{ formatHour(hour) }}</div>
                 <div class="hour-slot">
                   <div
-                    v-for="block in store.blocksByHour[hour]"
+                    v-for="block in getBlocksForHour(hour)"
                     :key="block.id"
                     class="time-block"
                     :class="[
-                      'time-block--' + block.category.toLowerCase(),
-                      'time-block--' + block.status.toLowerCase(),
+                      'time-block--' + (block.category || 'personal').toLowerCase(),
+                      'time-block--' + (block.status  || 'pending').toLowerCase(),
+                      { 'time-block--recurring': block.recurring || block.autoScheduled }
                     ]"
                     :style="blockStyle(block)"
                     draggable="true"
-                    @dragstart="onDragStart($event, block)"
-                    @click="store.openEditModal(block)"
-                    :title="block.title"
+                    @dragstart="onDragStartBlock($event, block)"
+                    @click.stop="openEditModal(block)"
                   >
                     <div class="block-top">
                       <span class="block-cat-dot" />
+                      <span v-if="block.recurring || block.autoScheduled"
+                            class="block-recurring-badge" title="Recurring">🔁</span>
                       <span class="block-time mono">
                         {{ formatTime(block.startTime) }} – {{ formatTime(block.endTime) }}
                       </span>
-                      <span class="block-duration mono">{{ block.durationMinutes }}m</span>
+                      <span class="block-duration mono">{{ blockDuration(block) }}m</span>
                     </div>
                     <div class="block-title">{{ block.title }}</div>
                     <div class="block-actions" @click.stop>
@@ -106,50 +111,92 @@
           </div>
         </div>
 
-        <!-- ── Task Panel ───────────────────────────────────────────── -->
+        <!-- ── Task Panel ────────────────────────────────────────── -->
         <div class="task-panel">
 
           <div class="panel-header">
             <span class="panel-header-title">Task Panel</span>
+            <span class="panel-count mono">{{ pendingTasks.length }} tasks</span>
           </div>
 
-          <!-- Habits from habits module -->
-          <div class="panel-section" v-if="store.unscheduledHabits.length > 0">
-            <div class="panel-section-title">From Habits</div>
+          <!-- Today's pending tasks (drag-and-drop) -->
+          <div class="panel-section">
+            <div class="panel-section-title">Today's Tasks</div>
+
+            <div v-if="loadingTasks" class="panel-loading">
+              <div class="spinner" style="width:16px;height:16px" />
+            </div>
+
+            <div v-else-if="pendingTasks.length === 0" class="panel-empty">
+              <div class="panel-empty-icon">✓</div>
+              <p class="text-muted text-sm" style="text-align:center">
+                All tasks scheduled.
+              </p>
+            </div>
+
             <div
-              v-for="h in store.unscheduledHabits"
-              :key="'habit-' + h.id"
+              v-for="task in pendingTasks"
+              :key="'t-' + task.id"
               class="panel-task"
               draggable="true"
-              @dragstart="onDragHabit($event, h)"
-              @click="prefillFromHabit(h)"
-              title="Click or drag to schedule"
+              @dragstart="onDragStartTask($event, task)"
+              :title="task.priority + ' priority · drag to schedule'"
             >
-              <span class="panel-task-dot habit-dot" />
-              <span class="panel-task-label">{{ h.title }}</span>
-              <span class="panel-task-badge">habit</span>
+              <div class="panel-task-left">
+                <span class="priority-dot" :class="(task.priority || 'medium').toLowerCase()" />
+                <div class="panel-task-info">
+                  <span class="panel-task-label">{{ task.title }}</span>
+                  <span class="panel-task-meta mono">
+                    {{ task.durationMinutes || 30 }}m · {{ task.category || 'GENERAL' }}
+                  </span>
+                </div>
+              </div>
+              <span class="drag-handle" title="Drag me">⠿</span>
             </div>
           </div>
 
-          <div v-else-if="!store.loading" class="panel-empty">
-            <div class="panel-empty-icon">◧</div>
-            <p class="text-muted text-sm">All habits scheduled for today.</p>
+          <!-- Recurring habits list -->
+          <div class="panel-section">
+            <div class="panel-section-title">Daily Recurring</div>
+
+            <div v-if="recurringHabits.length === 0" class="text-muted text-sm"
+                 style="padding:4px 0 8px">
+              No recurring habits yet.
+            </div>
+
+            <div
+              v-for="rh in recurringHabits"
+              :key="'rh-' + rh.id"
+              class="panel-recurring"
+            >
+              <span class="recurring-icon">🔁</span>
+              <div class="panel-task-info" style="flex:1;min-width:0">
+                <span class="panel-task-label">{{ rh.title }}</span>
+                <span class="panel-task-meta mono">
+                  {{ formatTime(rh.startTime) }} – {{ formatTime(rh.endTime) }}
+                </span>
+              </div>
+              <button class="panel-edit-btn" @click="openEditRecurring(rh)" title="Edit">✎</button>
+            </div>
+
+            <!-- FIX 1: Use openNewRecurringModal() here too -->
+            <button class="panel-quick-btn" @click="openNewRecurringModal()">
+              <span style="color:var(--accent);font-size:14px">+</span>
+              Add recurring habit
+            </button>
           </div>
 
           <!-- Quick add -->
           <div class="panel-section">
             <div class="panel-section-title">Quick Add</div>
-            <button class="panel-quick-btn" @click="store.openCreateModal({ category: 'WORK' })">
-              <span class="qb-dot work" />
-              <span>Work block</span>
+            <button class="panel-quick-btn" @click="openCreateModal({ category: 'WORK' })">
+              <span class="qb-dot work" />Work block
             </button>
-            <button class="panel-quick-btn" @click="store.openCreateModal({ category: 'PERSONAL' })">
-              <span class="qb-dot personal" />
-              <span>Personal block</span>
+            <button class="panel-quick-btn" @click="openCreateModal({ category: 'PERSONAL' })">
+              <span class="qb-dot personal" />Personal block
             </button>
-            <button class="panel-quick-btn" @click="store.openCreateModal({ category: 'DISCIPLINE' })">
-              <span class="qb-dot discipline" />
-              <span>Discipline block</span>
+            <button class="panel-quick-btn" @click="openCreateModal({ category: 'DISCIPLINE' })">
+              <span class="qb-dot discipline" />Discipline block
             </button>
           </div>
 
@@ -160,84 +207,167 @@
             <div class="legend-row"><span class="legend-dot discipline" /><span>Discipline</span></div>
             <div class="legend-row"><span class="legend-dot work" /><span>Work</span></div>
             <div class="legend-row"><span class="legend-dot personal" /><span>Personal</span></div>
+            <div class="legend-row" style="margin-top:6px">
+              <span style="font-size:12px">🔁</span>
+              <span class="text-muted" style="font-size:11px">Recurring daily</span>
+            </div>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- ── Add / Edit Modal ─────────────────────────────────────────── -->
+    <!-- ── Add / Edit Block Modal ─────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="store.showModal" class="modal-overlay" @click.self="store.closeModal()">
+        <div v-if="showBlockModal" class="modal-overlay" @click.self="closeBlockModal">
           <div class="modal-box card">
-
             <div class="modal-header">
-              <h3>{{ isEditing ? 'Edit Block' : 'Add Block' }}</h3>
-              <button class="btn btn-ghost btn-icon" @click="store.closeModal()">✕</button>
+              <h3>{{ editingBlock ? 'Edit Block' : 'Add Block' }}</h3>
+              <button class="btn btn-ghost btn-icon" @click="closeBlockModal">✕</button>
             </div>
-
             <div class="modal-body">
               <div class="form-group">
                 <label class="form-label">Title *</label>
-                <input
-                  v-model="form.title"
-                  class="form-input"
-                  placeholder="e.g. Deep work session"
-                  required
-                />
+                <input v-model="blockForm.title" class="form-input"
+                       placeholder="e.g. Deep work session" ref="blockTitleInput" />
               </div>
-
               <div class="form-group">
                 <label class="form-label">Category</label>
-                <select v-model="form.category" class="form-input">
+                <select v-model="blockForm.category" class="form-input">
                   <option value="HABIT">Habit</option>
                   <option value="DISCIPLINE">Discipline</option>
                   <option value="WORK">Work</option>
                   <option value="PERSONAL">Personal</option>
                 </select>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Start Time</label>
-                  <input v-model="form.startTime" type="time" class="form-input" />
+                  <input v-model="blockForm.startTime" type="time" class="form-input" />
                 </div>
                 <div class="form-group">
                   <label class="form-label">End Time</label>
-                  <input v-model="form.endTime" type="time" class="form-input" />
+                  <input v-model="blockForm.endTime" type="time" class="form-input" />
                 </div>
               </div>
-
               <div class="form-group">
                 <label class="form-label">Note (optional)</label>
-                <textarea
-                  v-model="form.description"
-                  class="form-input modal-textarea"
-                  rows="2"
-                  placeholder="Any notes…"
-                />
+                <textarea v-model="blockForm.description" class="form-input modal-textarea"
+                          rows="2" placeholder="Any notes…" />
               </div>
-
-              <div v-if="modalError" class="alert alert-error">{{ modalError }}</div>
+              <div v-if="blockError" class="alert alert-error">{{ blockError }}</div>
             </div>
-
             <div class="modal-footer">
-              <button
-                v-if="isEditing"
-                class="btn btn-danger btn-sm"
-                @click="deleteAndClose"
-              >
+              <button v-if="editingBlock" class="btn btn-danger btn-sm" @click="deleteEditingBlock">
                 Delete
               </button>
               <div class="modal-footer-right">
-                <button class="btn btn-ghost" @click="store.closeModal()">Cancel</button>
-                <button class="btn btn-primary" @click="submitForm" :disabled="saving">
-                  <span v-if="saving" class="spinner" />
-                  <span v-else>{{ isEditing ? 'Save Changes' : 'Add Block' }}</span>
+                <button class="btn btn-ghost" @click="closeBlockModal">Cancel</button>
+                <button class="btn btn-primary" @click="submitBlock" :disabled="blockSaving">
+                  <span v-if="blockSaving" class="spinner" />
+                  <span v-else>{{ editingBlock ? 'Save Changes' : 'Add Block' }}</span>
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
+    <!-- ── Recurring Habit Modal ──────────────────────────────────── -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showRecurringModal" class="modal-overlay" @click.self="closeRecurringModal">
+          <div class="modal-box card">
+            <div class="modal-header">
+              <h3>{{ editingRecurring ? 'Edit Recurring Habit' : 'New Recurring Habit' }}</h3>
+              <button class="btn btn-ghost btn-icon" @click="closeRecurringModal">✕</button>
+            </div>
+            <div class="modal-body">
+
+              <!-- Info banner -->
+              <div class="recurring-info-banner">
+                <span>🔁</span>
+                <span>
+                  This habit will appear in your timetable
+                  <strong>every day</strong> automatically.
+                  Editing the time updates all future days.
+                </span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Habit Name *</label>
+                <input v-model="rhForm.title" class="form-input"
+                       placeholder="e.g. Morning Meditation" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <div class="category-chips">
+                  <button
+                    v-for="cat in categories"
+                    :key="cat.value"
+                    type="button"
+                    class="cat-chip"
+                    :class="{ selected: rhForm.category === cat.value }"
+                    @click="rhForm.category = cat.value"
+                  >
+                    {{ cat.emoji }} {{ cat.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Start Time *</label>
+                  <input v-model="rhForm.startTime" type="time" class="form-input" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">End Time *</label>
+                  <input v-model="rhForm.endTime" type="time" class="form-input" />
+                </div>
+              </div>
+
+              <!-- Duration preview -->
+              <div class="duration-preview" v-if="rhDuration > 0">
+                <span>⏱</span>
+                <span class="mono">{{ rhDuration }} minutes per session</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Description (optional)</label>
+                <input v-model="rhForm.description" class="form-input"
+                       placeholder="e.g. Mindfulness + breathing" />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Start From *</label>
+                  <input v-model="rhForm.startDate" type="date" class="form-input" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">End Date (optional)</label>
+                  <input v-model="rhForm.endDate" type="date" class="form-input" />
+                </div>
+              </div>
+
+              <div v-if="rhError" class="alert alert-error">{{ rhError }}</div>
+            </div>
+            <div class="modal-footer">
+              <button v-if="editingRecurring" class="btn btn-danger btn-sm"
+                      @click="deactivateRecurring">
+                Stop Recurring
+              </button>
+              <div class="modal-footer-right">
+                <button class="btn btn-ghost" @click="closeRecurringModal">Cancel</button>
+                <button class="btn btn-primary" @click="submitRecurring" :disabled="rhSaving">
+                  <span v-if="rhSaving" class="spinner" />
+                  <span v-else>
+                    {{ editingRecurring ? 'Update All Future' : 'Create Recurring' }}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </Transition>
@@ -246,65 +376,144 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AppSidebar from '@/components/AppSidebar.vue'
-import { useTimetableStore } from '@/store/timetable'
-import { useTheme } from '@/composables/useTheme'
+import apiClient  from '@/services/apiClient'
 
-const store       = useTimetableStore()
-useTheme()   // initialises IST-based theme if not already running
-const timelineEl  = ref(null)
-const saving      = ref(false)
-const modalError  = ref('')
+// ─────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────
+
+// Schedule
+const blocks          = ref([])
+const loadingSchedule = ref(false)
+const selectedDate    = ref(new Date().toISOString().split('T')[0])
+
+// Tasks
+const todayTasks   = ref([])
+const loadingTasks = ref(false)
+
+// Recurring habits
+const recurringHabits = ref([])
+
+// Clock
 const currentTime = ref(new Date())
 let   clockInterval = null
 
-// ── Full 24 hours ─────────────────────────────────────────────────────
-const visibleHours = Array.from({ length: 24 }, (_, i) => i)
+// Timeline ref
+const timelineEl = ref(null)
 
-// ── Date helpers ──────────────────────────────────────────────────────
-const todayStr = new Date().toISOString().split('T')[0]
-const isToday  = computed(() => store.selectedDate === todayStr)
+// Drag state
+let draggedBlock = null
+let draggedTask  = null
+const dragHoverHour = ref(null)
+
+// Block modal
+const showBlockModal  = ref(false)
+const editingBlock    = ref(null)
+const blockSaving     = ref(false)
+const blockError      = ref('')
+const blockTitleInput = ref(null)
+const blockForm = ref({
+  title: '', category: 'PERSONAL', startTime: '09:00', endTime: '10:00', description: ''
+})
+
+// Recurring modal
+const showRecurringModal = ref(false)
+const editingRecurring   = ref(null)
+const rhSaving = ref(false)
+const rhError  = ref('')
+const rhForm   = ref({
+  title: '', description: '', category: 'HABIT',
+  startTime: '06:00', endTime: '07:00',
+  startDate: new Date().toISOString().split('T')[0],
+  endDate: ''
+})
+
+// ─────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────
+
+const visibleHours = Array.from({ length: 24 }, (_, i) => i)
+const HOUR_HEIGHT  = 64
+const todayStr     = new Date().toISOString().split('T')[0]
+
+const categories = [
+  { value: 'HABIT',      label: 'Habit',      emoji: '◧' },
+  { value: 'DISCIPLINE', label: 'Discipline', emoji: '🎯' },
+  { value: 'WORK',       label: 'Work',       emoji: '💼' },
+  { value: 'PERSONAL',   label: 'Personal',   emoji: '🌱' },
+]
+
+// ─────────────────────────────────────────────────────────────────────
+// COMPUTED
+// ─────────────────────────────────────────────────────────────────────
+
+const isToday = computed(() => selectedDate.value === todayStr)
 
 const formattedDate = computed(() => {
-  const d = new Date(store.selectedDate + 'T00:00:00')
+  const d = new Date(selectedDate.value + 'T00:00:00')
   return d.toLocaleDateString('en-US', {
     weekday: 'long', month: 'short', day: 'numeric'
   })
 })
 
-function shiftDay(delta) {
-  const d = new Date(store.selectedDate + 'T00:00:00')
-  d.setDate(d.getDate() + delta)
-  store.goToDate(d.toISOString().split('T')[0])
-}
-
-function goToToday() {
-  store.goToDate(todayStr)
-}
-
-// ── Clock & now-line ──────────────────────────────────────────────────
 const currentTimeStr = computed(() => {
-  const h = currentTime.value.getHours().toString().padStart(2, '0')
-  const m = currentTime.value.getMinutes().toString().padStart(2, '0')
+  const h = String(currentTime.value.getHours()).padStart(2, '0')
+  const m = String(currentTime.value.getMinutes()).padStart(2, '0')
   return `${h}:${m}`
 })
-
-const HOUR_HEIGHT = 64
-const FIRST_HOUR  = 0
 
 const nowLineTop = computed(() => {
   const h = currentTime.value.getHours()
   const m = currentTime.value.getMinutes()
-  return (h - FIRST_HOUR) * HOUR_HEIGHT + (m / 60) * HOUR_HEIGHT
+  return h * HOUR_HEIGHT + (m / 60) * HOUR_HEIGHT
 })
 
-function isPastHour(hour) {
-  if (!isToday.value) return false
-  return hour < currentTime.value.getHours()
+const totalBlocks     = computed(() => blocks.value.length)
+const completedBlocks = computed(() =>
+  blocks.value.filter(b => b.status === 'DONE').length
+)
+const completionPct = computed(() =>
+  totalBlocks.value > 0
+    ? Math.round((completedBlocks.value / totalBlocks.value) * 100)
+    : 0
+)
+
+// Pending tasks (not yet scheduled or still pending)
+const pendingTasks = computed(() =>
+  todayTasks.value.filter(t =>
+    t.status === 'PENDING' || t.status === 'IN_PROGRESS'
+  )
+)
+
+// Duration computed for recurring form
+const rhDuration = computed(() => {
+  if (!rhForm.value.startTime || !rhForm.value.endTime) return 0
+  const [sh, sm] = rhForm.value.startTime.split(':').map(Number)
+  const [eh, em] = rhForm.value.endTime.split(':').map(Number)
+  const diff = (eh * 60 + em) - (sh * 60 + sm)
+  return diff > 0 ? diff : 0
+})
+
+// ─────────────────────────────────────────────────────────────────────
+// BLOCK HELPERS
+// ─────────────────────────────────────────────────────────────────────
+
+function parseTime(t) {
+  if (!t) return { h: 0, m: 0 }
+  const parts = String(t).split(':')
+  return { h: parseInt(parts[0]) || 0, m: parseInt(parts[1]) || 0 }
 }
 
-// ── Time formatting ───────────────────────────────────────────────────
+function formatTime(t) {
+  if (!t) return ''
+  const { h, m } = parseTime(t)
+  const period = h < 12 ? 'AM' : 'PM'
+  const hour   = h % 12 === 0 ? 12 : h % 12
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`
+}
+
 function formatHour(h) {
   if (h === 0)  return '12 AM'
   if (h < 12)   return `${h} AM`
@@ -312,907 +521,751 @@ function formatHour(h) {
   return `${h - 12} PM`
 }
 
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  const [h, m] = timeStr.split(':').map(Number)
-  const period = h < 12 ? 'AM' : 'PM'
-  const hour   = h % 12 || 12
-  return `${hour}:${m.toString().padStart(2, '0')} ${period}`
+function getBlocksForHour(hour) {
+  return blocks.value.filter(block => {
+    const { h } = parseTime(block.startTime)
+    return h === hour
+  })
 }
 
-// ── Block positioning ─────────────────────────────────────────────────
+function blockDuration(block) {
+  const { h: sh, m: sm } = parseTime(block.startTime)
+  const { h: eh, m: em } = parseTime(block.endTime)
+  return Math.max(0, (eh * 60 + em) - (sh * 60 + sm))
+}
+
 function blockStyle(block) {
-  const [sh, sm] = block.startTime.split(':').map(Number)
-  const [eh, em] = block.endTime.split(':').map(Number)
+  const { m: sm } = parseTime(block.startTime)
+  const duration  = blockDuration(block)
   const topOffset = (sm / 60) * HOUR_HEIGHT
-  const startMins = sh * 60 + sm
-  const endMins   = eh * 60 + em
-  const height    = Math.max(((endMins - startMins) / 60) * HOUR_HEIGHT - 4, 28)
-  return { top: topOffset + 2 + 'px', height: height + 'px' }
+  const height    = Math.max((duration / 60) * HOUR_HEIGHT - 4, 28)
+  return { top: `${topOffset + 2}px`, height: `${height}px` }
 }
 
-// ── Block actions ─────────────────────────────────────────────────────
+function isPastHour(hour) {
+  if (!isToday.value) return false
+  return hour < currentTime.value.getHours()
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// API CALLS
+// ─────────────────────────────────────────────────────────────────────
+
+async function fetchDaySchedule() {
+  loadingSchedule.value = true
+  try {
+    const { data } = await apiClient.get('/timetable/day', {
+      params: { date: selectedDate.value }
+    })
+    blocks.value = data?.blocks ?? data ?? []
+  } catch (e) {
+    console.error('Failed to load schedule:', e.message)
+    blocks.value = []
+  } finally {
+    loadingSchedule.value = false
+  }
+}
+
+async function fetchTodayTasks() {
+  loadingTasks.value = true
+  try {
+    const { data } = await apiClient.get('/plans/tasks/today')
+    todayTasks.value = data?.tasks ?? []
+  } catch (e) {
+    todayTasks.value = []
+  } finally {
+    loadingTasks.value = false
+  }
+}
+
+async function fetchRecurringHabits() {
+  try {
+    const { data } = await apiClient.get('/recurring-habits')
+    recurringHabits.value = data ?? []
+  } catch (e) {
+    recurringHabits.value = []
+  }
+}
+
+async function apiCreateBlock(payload) {
+  const { data } = await apiClient.post('/timetable', {
+    ...payload,
+    date: selectedDate.value
+  })
+  blocks.value.push(data)
+  blocks.value.sort((a, b) =>
+    String(a.startTime).localeCompare(String(b.startTime))
+  )
+  return data
+}
+
+async function apiUpdateBlock(id, payload) {
+  const { data } = await apiClient.put(`/timetable/${id}`, payload)
+  const idx = blocks.value.findIndex(b => b.id === id)
+  if (idx !== -1) blocks.value[idx] = data
+  return data
+}
+
+async function apiUpdateStatus(id, status) {
+  const { data } = await apiClient.patch(`/timetable/${id}/status`, { status })
+  const idx = blocks.value.findIndex(b => b.id === id)
+  if (idx !== -1) blocks.value[idx] = data
+}
+
+async function apiDeleteBlock(id) {
+  await apiClient.delete(`/timetable/${id}`)
+  blocks.value = blocks.value.filter(b => b.id !== id)
+}
+
+async function apiUpdateTaskStatus(taskId, status) {
+  try {
+    await apiClient.put(`/plans/tasks/${taskId}`, { status })
+    const idx = todayTasks.value.findIndex(t => t.id === taskId)
+    if (idx !== -1) todayTasks.value[idx].status = status
+  } catch (_) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// DATE NAVIGATION
+// ─────────────────────────────────────────────────────────────────────
+
+function shiftDay(delta) {
+  const d = new Date(selectedDate.value + 'T00:00:00')
+  d.setDate(d.getDate() + delta)
+  selectedDate.value = d.toISOString().split('T')[0]
+  fetchDaySchedule()
+}
+
+function goToToday() {
+  selectedDate.value = todayStr
+  fetchDaySchedule()
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// BLOCK ACTIONS
+// ─────────────────────────────────────────────────────────────────────
+
 async function toggleDone(block) {
-  await store.updateStatus(block.id, block.status === 'DONE' ? 'PENDING' : 'DONE')
+  const newStatus = block.status === 'DONE' ? 'PENDING' : 'DONE'
+  await apiUpdateStatus(block.id, newStatus)
 }
 
 async function deleteBlock(id) {
   if (!confirm('Delete this block?')) return
-  await store.deleteBlock(id)
+  await apiDeleteBlock(id)
 }
 
-// ── Drag & Drop ───────────────────────────────────────────────────────
-let draggedBlock = null
+// ─────────────────────────────────────────────────────────────────────
+// DRAG & DROP
+// ─────────────────────────────────────────────────────────────────────
 
-function onDragStart(event, block) {
+function onDragStartBlock(event, block) {
   draggedBlock = block
+  draggedTask  = null
   event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('type', 'block')
+  event.dataTransfer.setData('dragType', 'block')
+}
+
+function onDragStartTask(event, task) {
+  draggedTask  = task
+  draggedBlock = null
+  event.dataTransfer.effectAllowed = 'copy'
+  event.dataTransfer.setData('dragType', 'task')
+}
+
+function onDragOverHour(hour) {
+  dragHoverHour.value = hour
+}
+
+function onDragLeaveHour() {
+  dragHoverHour.value = null
 }
 
 async function onDropToHour(event, targetHour) {
-  event.preventDefault()
-  const type = event.dataTransfer.getData('type')
+  dragHoverHour.value = null
+  const dragType = event.dataTransfer.getData('dragType')
 
-  if (type === 'block' && draggedBlock) {
-    const [sh, sm] = draggedBlock.startTime.split(':').map(Number)
-    const [eh, em] = draggedBlock.endTime.split(':').map(Number)
-    const duration  = (eh * 60 + em) - (sh * 60 + sm)
-    const newStart  = `${String(targetHour).padStart(2, '0')}:${String(sm).padStart(2, '0')}`
-    const newEndH   = targetHour + Math.floor((sm + duration) / 60)
-    const newEndM   = (sm + duration) % 60
-    const newEnd    = `${String(newEndH).padStart(2, '0')}:${String(newEndM).padStart(2, '0')}`
-    await store.updateBlock(draggedBlock.id, { startTime: newStart, endTime: newEnd })
+  if (dragType === 'block' && draggedBlock) {
+    const { m: sm } = parseTime(draggedBlock.startTime)
+    const duration  = blockDuration(draggedBlock)
+
+    const newStartH = targetHour
+    const newStartM = sm
+    const totalEndM = newStartH * 60 + newStartM + duration
+    const newEndH   = Math.min(Math.floor(totalEndM / 60), 23)
+    const newEndM   = totalEndM % 60
+
+    const newStart = `${String(newStartH).padStart(2,'0')}:${String(newStartM).padStart(2,'0')}:00`
+    const newEnd   = `${String(newEndH).padStart(2,'0')}:${String(newEndM).padStart(2,'0')}:00`
+
+    await apiUpdateBlock(draggedBlock.id, { startTime: newStart, endTime: newEnd })
     draggedBlock = null
   }
 
-  if (type === 'habit') {
-    const habitData = JSON.parse(event.dataTransfer.getData('habit'))
-    store.openCreateModal({
-      title:     habitData.title,
-      category:  'HABIT',
-      habitId:   habitData.habitId,
-      startTime: `${String(targetHour).padStart(2, '0')}:00`,
-      endTime:   `${String(targetHour + 1).padStart(2, '0')}:00`
+  if (dragType === 'task' && draggedTask) {
+    const duration = draggedTask.durationMinutes ?? 30
+    const startH   = targetHour
+    const totalEnd = startH * 60 + duration
+    const endH     = Math.min(Math.floor(totalEnd / 60), 23)
+    const endM     = totalEnd % 60
+
+    const startTime = `${String(startH).padStart(2,'0')}:00:00`
+    const endTime   = `${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`
+
+    await apiCreateBlock({
+      title:       draggedTask.title,
+      category:    draggedTask.category ?? 'PERSONAL',
+      startTime,
+      endTime,
+      description: draggedTask.description ?? '',
     })
+
+    await apiUpdateTaskStatus(draggedTask.id, 'IN_PROGRESS')
+    draggedTask = null
   }
 }
 
-function onDragHabit(event, habit) {
-  event.dataTransfer.effectAllowed = 'copy'
-  event.dataTransfer.setData('type', 'habit')
-  event.dataTransfer.setData('habit', JSON.stringify({
-    title: habit.title, habitId: habit.habitId
-  }))
+// ─────────────────────────────────────────────────────────────────────
+// BLOCK MODAL
+// ─────────────────────────────────────────────────────────────────────
+
+function openCreateModal(prefill = null) {
+  editingBlock.value = null
+  blockError.value   = ''
+  blockForm.value = {
+    title:       prefill?.title       ?? '',
+    category:    prefill?.category    ?? 'PERSONAL',
+    startTime:   prefill?.startTime   ?? '09:00',
+    endTime:     prefill?.endTime     ?? '10:00',
+    description: prefill?.description ?? '',
+  }
+  showBlockModal.value = true
+  nextTick(() => blockTitleInput.value?.focus())
 }
 
-function prefillFromHabit(habit) {
-  store.openCreateModal({ title: habit.title, category: 'HABIT', habitId: habit.habitId })
+function openEditModal(block) {
+  editingBlock.value = block
+  blockError.value   = ''
+  const st = String(block.startTime ?? '09:00').substring(0, 5)
+  const et = String(block.endTime   ?? '10:00').substring(0, 5)
+  blockForm.value = {
+    title:       block.title       ?? '',
+    category:    block.category    ?? 'PERSONAL',
+    startTime:   st,
+    endTime:     et,
+    description: block.description ?? '',
+  }
+  showBlockModal.value = true
 }
 
-// ── Form ──────────────────────────────────────────────────────────────
-const form = ref({
-  title: '', category: 'PERSONAL',
-  startTime: '09:00', endTime: '10:00',
-  description: '', habitId: null
-})
+function closeBlockModal() {
+  showBlockModal.value = false
+  editingBlock.value   = null
+  blockError.value     = ''
+}
 
-const isEditing = computed(() =>
-  store.editingBlock && store.editingBlock.id && !store.editingBlock._isNew
-)
-
-watch(() => store.showModal, (open) => {
-  if (!open) { modalError.value = ''; return }
-  const b = store.editingBlock
-  form.value = b ? {
-    title:       b.title       ?? '',
-    category:    b.category    ?? 'PERSONAL',
-    startTime:   b.startTime   ? b.startTime.substring(0, 5) : '09:00',
-    endTime:     b.endTime     ? b.endTime.substring(0, 5)   : '10:00',
-    description: b.description ?? '',
-    habitId:     b.habitId     ?? null
-  } : {
-    title: '', category: 'PERSONAL',
-    startTime: '09:00', endTime: '10:00',
-    description: '', habitId: null
+async function submitBlock() {
+  blockError.value = ''
+  if (!blockForm.value.title.trim()) {
+    blockError.value = 'Title is required'; return
   }
-})
-
-async function submitForm() {
-  modalError.value = ''
-  if (!form.value.title.trim()) { modalError.value = 'Title is required'; return }
-  if (form.value.startTime >= form.value.endTime) {
-    modalError.value = 'End time must be after start time'; return
+  if (blockForm.value.startTime >= blockForm.value.endTime) {
+    blockError.value = 'End time must be after start time'; return
   }
-  saving.value = true
+  blockSaving.value = true
   try {
     const payload = {
-      title:       form.value.title,
-      category:    form.value.category,
-      startTime:   form.value.startTime + ':00',
-      endTime:     form.value.endTime   + ':00',
-      description: form.value.description
+      title:       blockForm.value.title,
+      category:    blockForm.value.category,
+      startTime:   blockForm.value.startTime + ':00',
+      endTime:     blockForm.value.endTime   + ':00',
+      description: blockForm.value.description,
     }
-    if (isEditing.value) {
-      await store.updateBlock(store.editingBlock.id, payload)
+    if (editingBlock.value) {
+      await apiUpdateBlock(editingBlock.value.id, payload)
     } else {
-      await store.createBlock({ ...payload, habitId: form.value.habitId })
+      await apiCreateBlock(payload)
     }
-    store.closeModal()
+    closeBlockModal()
   } catch (e) {
-    modalError.value = e?.response?.data?.message ?? 'Something went wrong'
+    // FIX 3: Improved error extraction to handle multiple API response shapes
+    const d = e?.response?.data
+    blockError.value = d?.error ?? d?.message ?? d?.detail ?? e.message ?? 'Something went wrong'
   } finally {
-    saving.value = false
+    blockSaving.value = false
   }
 }
 
-async function deleteAndClose() {
-  if (!confirm('Delete this block?')) return
-  await store.deleteBlock(store.editingBlock.id)
-  store.closeModal()
+async function deleteEditingBlock() {
+  if (!editingBlock.value || !confirm('Delete this block?')) return
+  await apiDeleteBlock(editingBlock.value.id)
+  closeBlockModal()
 }
 
-// ── Lifecycle ─────────────────────────────────────────────────────────
-onMounted(() => {
-  store.fetchDaySchedule()
-  store.fetchHabitSuggestions()
-  clockInterval = setInterval(() => { currentTime.value = new Date() }, 60000)
+// ─────────────────────────────────────────────────────────────────────
+// RECURRING HABIT MODAL
+// ─────────────────────────────────────────────────────────────────────
+
+// FIX 1: Dedicated function to open modal for NEW recurring habit.
+// Always resets editingRecurring to null so the modal never accidentally
+// fires a PUT (update) instead of a POST (create) due to stale state.
+function openNewRecurringModal() {
+  editingRecurring.value = null
+  rhError.value = ''
+  rhForm.value = {
+    title: '', description: '', category: 'HABIT',
+    startTime: '06:00', endTime: '07:00',
+    startDate: todayStr,
+    endDate: ''
+  }
+  showRecurringModal.value = true
+}
+
+function openEditRecurring(rh) {
+  editingRecurring.value = rh
+  rhError.value = ''
+  rhForm.value = {
+    title:       rh.title       ?? '',
+    description: rh.description ?? '',
+    category:    rh.category    ?? 'HABIT',
+    startTime:   String(rh.startTime ?? '06:00').substring(0, 5),
+    endTime:     String(rh.endTime   ?? '07:00').substring(0, 5),
+    startDate:   rh.startDate   ?? todayStr,
+    endDate:     rh.endDate     ?? '',
+  }
+  showRecurringModal.value = true
+}
+
+function closeRecurringModal() {
+  showRecurringModal.value = false
+  editingRecurring.value   = null
+  rhError.value = ''
+  rhForm.value = {
+    title: '', description: '', category: 'HABIT',
+    startTime: '06:00', endTime: '07:00',
+    startDate: todayStr, endDate: ''
+  }
+}
+
+async function submitRecurring() {
+  rhError.value = ''
+
+  // ── Validation ──────────────────────────────────────────────────
+  if (!rhForm.value.title.trim()) {
+    rhError.value = 'Title is required'; return
+  }
+  if (!rhForm.value.startTime || !rhForm.value.endTime) {
+    rhError.value = 'Start and end time are required'; return
+  }
+  if (rhDuration.value <= 0) {
+    rhError.value = 'End time must be after start time'; return
+  }
+  // FIX 2: Guard against missing startDate — the API requires it and
+  // will reject silently without this client-side check.
+  if (!rhForm.value.startDate) {
+    rhError.value = 'Start date is required'; return
+  }
+
+  rhSaving.value = true
+  try {
+    const payload = {
+      title:       rhForm.value.title.trim(),
+      description: rhForm.value.description || null,
+      category:    rhForm.value.category,
+      startTime:   rhForm.value.startTime + ':00',
+      endTime:     rhForm.value.endTime   + ':00',
+      startDate:   rhForm.value.startDate,
+      endDate:     rhForm.value.endDate   || null,
+    }
+
+    if (editingRecurring.value) {
+      // Editing an existing recurring habit → PUT
+      const { data } = await apiClient.put(
+        `/recurring-habits/${editingRecurring.value.id}`, payload
+      )
+      const idx = recurringHabits.value.findIndex(
+        r => r.id === editingRecurring.value.id
+      )
+      if (idx !== -1) recurringHabits.value[idx] = data
+    } else {
+      // Creating a new recurring habit → POST
+      const { data } = await apiClient.post('/recurring-habits', payload)
+      recurringHabits.value.unshift(data)
+    }
+
+    closeRecurringModal()
+    // Refresh timeline to show newly created/updated blocks
+    await fetchDaySchedule()
+  } catch (e) {
+    // FIX 3: Extract error message from multiple possible API response shapes
+    // (e.g. { error }, { message }, { detail }) so rhError is never blank
+    const d = e?.response?.data
+    rhError.value = d?.error ?? d?.message ?? d?.detail ?? e.message ?? 'Something went wrong'
+  } finally {
+    rhSaving.value = false
+  }
+}
+
+async function deactivateRecurring() {
+  if (!editingRecurring.value) return
+  if (!confirm('Stop this recurring habit? All future pending blocks will be removed.')) return
+  try {
+    await apiClient.delete(`/recurring-habits/${editingRecurring.value.id}`)
+    recurringHabits.value = recurringHabits.value.filter(
+      r => r.id !== editingRecurring.value.id
+    )
+    closeRecurringModal()
+    await fetchDaySchedule()
+  } catch (e) {
+    const d = e?.response?.data
+    rhError.value = d?.error ?? d?.message ?? d?.detail ?? e.message ?? 'Failed to deactivate'
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// LIFECYCLE
+// ─────────────────────────────────────────────────────────────────────
+
+onMounted(async () => {
+  await Promise.all([
+    fetchDaySchedule(),
+    fetchTodayTasks(),
+    fetchRecurringHabits(),
+  ])
+
+  clockInterval = setInterval(() => {
+    currentTime.value = new Date()
+  }, 60000)
+
+  // Scroll to current hour on load
   setTimeout(() => {
     if (timelineEl.value && isToday.value) {
-      timelineEl.value.scrollTop = Math.max(0, nowLineTop.value - 100)
+      const scrollTarget = Math.max(0, nowLineTop.value - 120)
+      timelineEl.value.scrollTop = scrollTarget
     }
-  }, 300)
+  }, 400)
 })
 
-onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
+onUnmounted(() => {
+  if (clockInterval) clearInterval(clockInterval)
+})
 </script>
 
 <style scoped>
-/* ── Design tokens — Light theme (default) ─────────────────────────── */
-:root,
-:global([data-theme="light"]) {
-  --bg:           #F5F4F0;
-  --bg-card:      #FFFFFF;
-  --bg-hover:     #F0EEE9;
-  --bg-stripe:    #FAF9F7;
-
-  --border:       #E3E0D8;
-  --border-light: #C8C4BB;
-
-  --text-primary:   #1A1917;
-  --text-secondary: #5C5850;
-  --text-muted:     #9C9890;
-
-  --accent:     #2563EB;
-  --accent-dim: #EFF4FF;
-  --green:      #16A34A;
-  --red:        #DC2626;
-  --amber:      #D97706;
-
-  /* Category palette — saturated but not harsh */
-  --cat-habit-bg:      #EFF6FF;
-  --cat-habit-border:  #3B82F6;
-  --cat-habit-text:    #1D4ED8;
-
-  --cat-disc-bg:      #F5F3FF;
-  --cat-disc-border:  #7C3AED;
-  --cat-disc-text:    #5B21B6;
-
-  --cat-work-bg:      #ECFDF5;
-  --cat-work-border:  #16A34A;
-  --cat-work-text:    #166534;
-
-  --cat-personal-bg:     #FFF7ED;
-  --cat-personal-border: #EA580C;
-  --cat-personal-text:   #9A3412;
-
-  --now-color: #2563EB;
-
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
-  --shadow-lg: 0 20px 40px rgba(0,0,0,0.12);
-
-  --radius:    10px;
-  --radius-sm: 6px;
-  --transition: 150ms ease;
-  --font-display: 'DM Sans', 'Segoe UI', sans-serif;
-  --font-mono: 'DM Mono', 'Fira Code', monospace;
+/* ── Layout ───────────────────────────────────────────────────────── */
+.dashboard       { display: flex; min-height: 100vh; }
+.timetable-main  {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; height: 100vh;
 }
 
-/* ── Dark theme ────────────────────────────────────────────────────── */
-:global([data-theme="dark"]) {
-  --bg:           #111210;
-  --bg-card:      #1C1C1A;
-  --bg-hover:     #252523;
-  --bg-stripe:    #191917;
-
-  --border:       #2E2D2A;
-  --border-light: #3D3C38;
-
-  --text-primary:   #EDECE8;
-  --text-secondary: #9B9A95;
-  --text-muted:     #5E5D59;
-
-  --accent:     #4F8EF7;
-  --accent-dim: #1C2740;
-  --green:      #34D399;
-  --red:        #F87171;
-  --amber:      #FBBf24;
-
-  --cat-habit-bg:      #162032;
-  --cat-habit-border:  #4F8EF7;
-  --cat-habit-text:    #93C5FD;
-
-  --cat-disc-bg:      #1E1630;
-  --cat-disc-border:  #A78BFA;
-  --cat-disc-text:    #C4B5FD;
-
-  --cat-work-bg:      #0D2018;
-  --cat-work-border:  #34D399;
-  --cat-work-text:    #6EE7B7;
-
-  --cat-personal-bg:     #221508;
-  --cat-personal-border: #FB923C;
-  --cat-personal-text:   #FDBA74;
-
-  --now-color: #4F8EF7;
-
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.35);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
-  --shadow-lg: 0 20px 40px rgba(0,0,0,0.6);
-}
-
-/* ── Global resets ─────────────────────────────────────────────────── */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-/* ── Layout ──────────────────────────────────────────────────────────── */
-.dashboard       { display: flex; min-height: 100vh; background: var(--bg); }
-.timetable-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; height: 100vh; }
-
-/* ── Header ──────────────────────────────────────────────────────────── */
+/* ── Header ───────────────────────────────────────────────────────── */
 .tt-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 28px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
-  flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 28px; border-bottom: 1px solid var(--border);
+  background: var(--bg-card); flex-shrink: 0;
 }
-
 .tt-header-left  { display: flex; align-items: center; gap: 24px; }
 .tt-header-right { display: flex; align-items: center; gap: 12px; }
+.tt-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
 
-.tt-title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  color: var(--text-primary);
-  font-family: var(--font-display);
-}
-
-/* Date nav */
-.date-nav { display: flex; align-items: center; gap: 4px; }
-
+.date-nav { display: flex; align-items: center; gap: 6px; }
 .current-date {
-  font-size: 13px;
-  color: var(--text-secondary);
-  min-width: 176px;
-  text-align: center;
-  font-family: var(--font-mono);
-  letter-spacing: 0.01em;
+  font-size: 13px; color: var(--text-secondary);
+  min-width: 180px; text-align: center; font-family: var(--font-mono);
 }
 
 .icon-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 17px;
-  cursor: pointer;
-  padding: 3px 9px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
-  line-height: 1.4;
-  font-family: var(--font-display);
+  background: var(--bg-hover); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: 18px; cursor: pointer;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  transition: all var(--transition); line-height: 1;
 }
-.icon-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-light);
-  color: var(--text-primary);
-}
+.icon-btn:hover { border-color: var(--border-light); color: var(--text-primary); }
 
 .today-btn {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 12px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background: var(--accent-dim);
-  color: var(--accent);
-  cursor: pointer;
-  font-family: var(--font-display);
-  transition: all var(--transition);
-  letter-spacing: 0.02em;
+  font-size: 12px; font-weight: 600; padding: 4px 12px;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent-dim); color: var(--accent);
+  cursor: pointer; font-family: var(--font-display); transition: all var(--transition);
 }
 .today-btn:hover { background: var(--accent); color: #fff; }
 
-/* Completion pill */
-.completion-pill  { display: flex; align-items: center; gap: 10px; }
+.completion-pill   { display: flex; align-items: center; gap: 10px; }
 .completion-bar-wrap {
-  width: 80px; height: 5px;
-  background: var(--border);
+  width: 90px; height: 6px; background: var(--border);
   border-radius: 3px; overflow: hidden;
 }
 .completion-bar {
-  height: 100%;
-  background: var(--green);
-  border-radius: 3px;
+  height: 100%; background: var(--accent); border-radius: 3px;
   transition: width 0.5s ease;
 }
-.completion-text {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
+.completion-text { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
 
-/* Primary button */
-.btn-primary {
-  padding: 7px 16px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  font-family: var(--font-display);
-  transition: all var(--transition);
-  letter-spacing: 0.01em;
-}
-.btn-primary:hover { filter: brightness(1.08); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.btn-ghost {
-  padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: var(--font-display);
-  transition: all var(--transition);
-}
-.btn-ghost:hover { border-color: var(--border-light); color: var(--text-primary); background: var(--bg-hover); }
-
-.btn-danger {
-  padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  border: 1px solid var(--red);
-  color: var(--red);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: var(--font-display);
-  transition: all var(--transition);
-}
-.btn-danger:hover { background: var(--red); color: #fff; }
-
-.btn-icon {
-  width: 32px; height: 32px;
-  padding: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-
-/* ── Body ────────────────────────────────────────────────────────────── */
+/* ── Body ─────────────────────────────────────────────────────────── */
 .tt-body { display: flex; flex: 1; overflow: hidden; }
 
-/* ── Timeline ────────────────────────────────────────────────────────── */
-.timeline-wrap {
-  flex: 1;
-  overflow-y: auto;
-  background: var(--bg);
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-.timeline-wrap::-webkit-scrollbar { width: 5px; }
-.timeline-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-.timeline {
-  position: relative;
-  padding: 8px 0 60px;
-}
-
+/* ── Timeline ─────────────────────────────────────────────────────── */
+.timeline-wrap { flex: 1; overflow-y: auto; background: var(--bg); }
+.timeline      { position: relative; padding: 8px 0 40px; }
 .timeline-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 80px 40px;
-  color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 13px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 12px; padding: 80px 40px;
 }
 
 /* Now line */
 .now-line {
-  position: absolute;
-  left: 0; right: 0;
-  display: flex;
-  align-items: center;
-  pointer-events: none;
-  z-index: 10;
+  position: absolute; left: 0; right: 0;
+  display: flex; align-items: center;
+  pointer-events: none; z-index: 10;
 }
 .now-dot {
-  width: 8px; height: 8px;
-  background: var(--now-color);
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-left: 60px;
-  box-shadow: 0 0 0 2px var(--bg), 0 0 8px var(--now-color);
+  width: 9px; height: 9px; background: var(--accent);
+  border-radius: 50%; flex-shrink: 0;
+  margin-left: 56px; box-shadow: 0 0 8px var(--accent-glow);
 }
 .now-line::after {
-  content: '';
-  flex: 1;
-  height: 1.5px;
-  background: linear-gradient(90deg, var(--now-color) 0%, transparent 100%);
-  margin-right: 16px;
-  opacity: 0.7;
+  content: ''; flex: 1; height: 1px;
+  background: var(--accent); opacity: 0.5; margin-right: 12px;
 }
 .now-label {
-  font-size: 10px;
-  color: var(--now-color);
-  font-weight: 600;
-  flex-shrink: 0;
-  padding-right: 14px;
-  font-family: var(--font-mono);
+  font-size: 10px; color: var(--accent);
+  flex-shrink: 0; padding-right: 12px; font-family: var(--font-mono);
 }
 
 /* Hour rows */
 .hour-row {
-  display: flex;
-  min-height: 64px;
-  position: relative;
+  display: flex; min-height: 64px; position: relative;
   border-top: 1px solid var(--border);
   transition: background var(--transition);
 }
-.hour-row:nth-child(even) { background: var(--bg-stripe); }
-.hour-row:hover { background: var(--bg-hover); }
-.hour-row--past .hour-label { opacity: 0.4; }
-.hour-row--past .hour-slot  { opacity: 0.5; }
+.hour-row:hover        { background: rgba(124, 106, 247, 0.04); }
+.hour-row--past        { opacity: 0.45; }
+.hour-row--hover       { background: rgba(124, 106, 247, 0.08) !important; }
 
 .hour-label {
-  width: 64px;
-  flex-shrink: 0;
-  font-size: 10px;
-  color: var(--text-muted);
-  padding: 7px 12px 0 16px;
-  text-align: right;
-  font-family: var(--font-mono);
-  letter-spacing: 0.03em;
+  width: 60px; flex-shrink: 0; font-size: 11px;
+  color: var(--text-muted); padding: 6px 10px 0 14px;
+  text-align: right; font-family: var(--font-mono); letter-spacing: 0.02em;
 }
 
 .hour-slot {
-  flex: 1;
-  position: relative;
-  min-height: 64px;
-  padding-right: 16px;
-  border-left: 1px solid var(--border);
+  flex: 1; position: relative; min-height: 64px; padding-right: 16px;
 }
 
-/* ── Time blocks ─────────────────────────────────────────────────────── */
+/* ── Time blocks ──────────────────────────────────────────────────── */
 .time-block {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  position: absolute; left: 6px; right: 6px;
+  border-radius: var(--radius-sm); padding: 5px 10px;
+  cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
   border-left: 3px solid transparent;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  z-index: 2;
-  box-shadow: var(--shadow-sm);
+  overflow: hidden; display: flex; flex-direction: column; gap: 3px; z-index: 2;
 }
-.time-block:hover {
-  transform: translateX(3px) translateY(-1px);
-  box-shadow: var(--shadow-md);
-  z-index: 5;
+.time-block:hover { transform: translateX(3px); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+
+.time-block--habit      { background: rgba(55,138,221,0.15);  border-color: #378ADD; }
+.time-block--discipline { background: rgba(124,106,247,0.15); border-color: var(--accent); }
+.time-block--work       { background: rgba(52,211,153,0.15);  border-color: var(--green); }
+.time-block--personal   { background: rgba(251,146,60,0.15);  border-color: #FB923C; }
+
+.time-block--recurring  { border-style: dashed; border-width: 2px; }
+.time-block--done       { opacity: 0.55; }
+.time-block--done .block-title { text-decoration: line-through; }
+.time-block--skipped    { opacity: 0.3; }
+
+.block-top  { display: flex; align-items: center; gap: 5px; }
+.block-cat-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.time-block--habit      .block-cat-dot { background: #378ADD; }
+.time-block--discipline .block-cat-dot { background: var(--accent); }
+.time-block--work       .block-cat-dot { background: var(--green); }
+.time-block--personal   .block-cat-dot { background: #FB923C; }
+
+.block-recurring-badge { font-size: 10px; flex-shrink: 0; }
+.block-time   { font-size: 10px; color: var(--text-secondary); flex: 1; font-family: var(--font-mono); }
+.block-duration { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+.block-title  {
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* Category colors */
-.time-block--habit {
-  background: var(--cat-habit-bg);
-  border-left-color: var(--cat-habit-border);
-}
-.time-block--discipline {
-  background: var(--cat-disc-bg);
-  border-left-color: var(--cat-disc-border);
-}
-.time-block--work {
-  background: var(--cat-work-bg);
-  border-left-color: var(--cat-work-border);
-}
-.time-block--personal {
-  background: var(--cat-personal-bg);
-  border-left-color: var(--cat-personal-border);
-}
-
-/* Status */
-.time-block--done    { opacity: 0.6; }
-.time-block--done .block-title { text-decoration: line-through; color: var(--text-muted); }
-.time-block--skipped { opacity: 0.3; }
-
-.block-top { display: flex; align-items: center; gap: 5px; }
-
-.block-cat-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.time-block--habit      .block-cat-dot { background: var(--cat-habit-border); }
-.time-block--discipline .block-cat-dot { background: var(--cat-disc-border); }
-.time-block--work       .block-cat-dot { background: var(--cat-work-border); }
-.time-block--personal   .block-cat-dot { background: var(--cat-personal-border); }
-
-.block-time {
-  font-size: 10px;
-  color: var(--text-muted);
-  flex: 1;
-  font-family: var(--font-mono);
-}
-.block-duration {
-  font-size: 10px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-
-.block-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-display);
-  letter-spacing: -0.01em;
-}
-.time-block--habit      .block-title { color: var(--cat-habit-text); }
-.time-block--discipline .block-title { color: var(--cat-disc-text); }
-.time-block--work       .block-title { color: var(--cat-work-text); }
-.time-block--personal   .block-title { color: var(--cat-personal-text); }
-
-/* Block action buttons — hidden until hover */
-.block-actions {
-  display: none;
-  position: absolute;
-  top: 5px;
-  right: 8px;
-  gap: 4px;
-  align-items: center;
-}
+.block-actions { display: none; position: absolute; top: 5px; right: 8px; gap: 4px; align-items: center; }
 .time-block:hover .block-actions { display: flex; }
 
 .block-action-btn {
-  width: 22px; height: 22px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
+  width: 22px; height: 22px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light); background: var(--bg-card);
+  color: var(--text-secondary); font-size: 12px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--transition);
-  line-height: 1;
 }
 .block-action-btn:hover       { border-color: var(--accent); color: var(--accent); }
-.block-action-btn.active      { background: var(--green); color: #fff; border-color: var(--green); }
+.block-action-btn.active      { background: var(--green); color: #000; border-color: var(--green); }
 .block-action-btn.danger:hover { background: var(--red); color: #fff; border-color: var(--red); }
 
-/* ── Task Panel ──────────────────────────────────────────────────────── */
+/* ── Task Panel ───────────────────────────────────────────────────── */
 .task-panel {
-  width: 224px;
-  flex-shrink: 0;
+  width: 240px; flex-shrink: 0;
   border-left: 1px solid var(--border);
   background: var(--bg-card);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  display: flex; flex-direction: column; overflow-y: auto;
 }
 
 .panel-header {
-  display: flex;
-  align-items: center;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-.panel-header-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-}
+.panel-header-title { font-size: 13px; font-weight: 700; color: var(--text-primary); font-family: var(--font-display); }
+.panel-count        { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
 
-.panel-section {
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
+.panel-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .panel-section-title {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  margin-bottom: 10px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 10px;
 }
 
-/* Habit task items */
+.panel-loading { display: flex; justify-content: center; padding: 8px 0; }
+
+/* Task drag items */
 .panel-task {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  cursor: grab;
-  margin-bottom: 5px;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 9px 10px; border-radius: var(--radius-sm);
+  background: var(--bg-hover); border: 1px solid var(--border);
+  margin-bottom: 6px; cursor: grab; user-select: none;
   transition: all var(--transition);
-  font-family: var(--font-display);
 }
-.panel-task:hover {
-  border-color: var(--cat-habit-border);
-  background: var(--cat-habit-bg);
-  transform: translateX(2px);
-}
-.panel-task:active { cursor: grabbing; }
+.panel-task:hover  { border-color: var(--border-light); transform: translateX(2px); }
+.panel-task:active { cursor: grabbing; opacity: 0.7; }
 
-.panel-task-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.habit-dot { background: var(--cat-habit-border); }
+.panel-task-left { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; }
 
+.priority-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
+}
+.priority-dot.high   { background: var(--red); }
+.priority-dot.medium { background: #fb923c; }
+.priority-dot.low    { background: var(--green); }
+
+.panel-task-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .panel-task-label {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-
-.panel-task-badge {
-  font-size: 9px;
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  color: var(--cat-habit-text);
-  background: var(--cat-habit-bg);
-  border: 1px solid var(--cat-habit-border);
-  padding: 1px 6px;
-  border-radius: 999px;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
-}
+.panel-task-meta { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+.drag-handle { font-size: 14px; color: var(--text-muted); flex-shrink: 0; }
 
 .panel-empty {
-  padding: 28px 14px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-family: var(--font-display);
+  padding: 16px 0; display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
 }
-.panel-empty-icon {
-  font-size: 22px;
-  color: var(--green);
-  opacity: 0.5;
+.panel-empty-icon { font-size: 20px; color: var(--green); }
+
+/* Recurring items */
+.panel-recurring {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--bg-hover); border: 1px solid var(--border);
+  margin-bottom: 6px;
 }
+.recurring-icon { font-size: 14px; flex-shrink: 0; }
+.panel-edit-btn {
+  width: 22px; height: 22px; flex-shrink: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-muted); font-size: 11px;
+  cursor: pointer; transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center;
+}
+.panel-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Quick add buttons */
 .panel-quick-btn {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 8px 10px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-  margin-bottom: 5px;
-  transition: all var(--transition);
-  font-family: var(--font-display);
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; background: var(--bg-hover);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; color: var(--text-secondary);
+  cursor: pointer; text-align: left; margin-bottom: 6px;
+  transition: all var(--transition); font-family: var(--font-display);
 }
-.panel-quick-btn:hover {
-  border-color: var(--border-light);
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
+.panel-quick-btn:hover { border-color: var(--border-light); color: var(--text-primary); }
 
-.qb-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.qb-dot.work       { background: var(--cat-work-border); }
-.qb-dot.personal   { background: var(--cat-personal-border); }
-.qb-dot.discipline { background: var(--cat-disc-border); }
+.qb-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.qb-dot.work       { background: var(--green); }
+.qb-dot.personal   { background: #FB923C; }
+.qb-dot.discipline { background: var(--accent); }
 
 /* Legend */
-.panel-legend {
-  padding: 14px;
-  margin-top: auto;
-  border-top: 1px solid var(--border);
-}
-
+.panel-legend { padding: 14px; margin-top: auto; border-top: 1px solid var(--border); }
 .legend-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-bottom: 7px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;
   font-family: var(--font-display);
 }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.legend-dot.habit      { background: #378ADD; }
+.legend-dot.discipline { background: var(--accent); }
+.legend-dot.work       { background: var(--green); }
+.legend-dot.personal   { background: #FB923C; }
 
-.legend-dot {
-  width: 8px; height: 8px;
-  border-radius: 2px;
-  flex-shrink: 0;
+/* ── Recurring modal specific ─────────────────────────────────────── */
+.recurring-info-banner {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--accent-dim); border: 1px solid rgba(124,106,247,0.25);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  font-size: 13px; color: var(--text-secondary); line-height: 1.6;
 }
-.legend-dot.habit      { background: var(--cat-habit-border); }
-.legend-dot.discipline { background: var(--cat-disc-border); }
-.legend-dot.work       { background: var(--cat-work-border); }
-.legend-dot.personal   { background: var(--cat-personal-border); }
 
-/* ── Forms ───────────────────────────────────────────────────────────── */
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  font-family: var(--font-display);
-  letter-spacing: 0.01em;
+.category-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.cat-chip {
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-hover); color: var(--text-secondary);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all var(--transition); font-family: var(--font-display);
 }
-.form-input {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-family: var(--font-display);
-  transition: border-color var(--transition), box-shadow var(--transition);
-  outline: none;
-}
-.form-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
-}
-.form-input::placeholder { color: var(--text-muted); }
-select.form-input { cursor: pointer; }
+.cat-chip:hover    { border-color: var(--border-light); color: var(--text-primary); }
+.cat-chip.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--text-primary); }
 
-/* ── Modal ───────────────────────────────────────────────────────────── */
+.duration-preview {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: var(--green-dim);
+  border: 1px solid rgba(52,211,153,0.2); border-radius: var(--radius-sm);
+  color: var(--green); font-size: 13px; font-weight: 600;
+}
+
+/* ── Shared modal ─────────────────────────────────────────────────── */
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  z-index: 1000;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px); display: flex;
+  align-items: center; justify-content: center;
+  padding: 24px; z-index: 1000;
 }
-
 .modal-box {
-  width: 100%;
-  max-width: 460px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 480px; background: var(--bg-card);
+  border: 1px solid var(--border-light); border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+  max-height: 90vh; /* never taller than viewport */
 }
-
 .modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; /* header never squishes */
 }
-.modal-header h3 {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-  font-family: var(--font-display);
-}
+.modal-header h3 { font-size: 17px; font-weight: 700; color: var(--text-primary); }
 
 .modal-body {
-  padding: 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;
+  overflow-y: auto; /* scroll the body, not the whole modal */
+  flex: 1;
 }
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.modal-textarea {
-  resize: vertical;
-  min-height: 64px;
-  font-family: var(--font-display);
-  line-height: 1.5;
-}
+.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.modal-textarea { resize: vertical; min-height: 64px; font-family: var(--font-display); line-height: 1.5; }
 
 .modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-  gap: 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; border-top: 1px solid var(--border); gap: 10px;
+  flex-shrink: 0; /* footer always visible, never pushed off screen */
 }
-.modal-footer-right {
-  display: flex;
-  gap: 10px;
-  margin-left: auto;
-}
+.modal-footer-right { display: flex; gap: 10px; margin-left: auto; }
 
-/* Alert */
-.alert {
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-family: var(--font-display);
-}
-.alert-error {
-  background: color-mix(in srgb, var(--red) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
-  color: var(--red);
-}
-
-/* Modal transition */
 .modal-enter-active, .modal-leave-active { transition: all 0.2s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.97) translateY(6px); }
-
-/* Spinner */
-.spinner {
-  display: inline-block;
-  width: 14px; height: 14px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.96); }
 </style>

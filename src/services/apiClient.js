@@ -25,7 +25,30 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (res) => res,
   (err) => {
-    const message = err.response?.data?.error || err.message || 'Something went wrong'
+    const status = err.response?.status
+    const data = err.response?.data
+
+    // Many backends return { message, errors } (not { error }).
+    const baseMessage =
+      data?.error ||
+      data?.message ||
+      err.message ||
+      'Something went wrong'
+
+    let details = ''
+    if (data?.errors && typeof data.errors === 'object') {
+      try {
+        details = Object.entries(data.errors)
+          .map(([field, msg]) => `${field}: ${Array.isArray(msg) ? msg.join(', ') : msg}`)
+          .join(' | ')
+      } catch (_) {}
+    }
+
+    const message =
+      status
+        ? `[${status}] ${baseMessage}${details ? ` — ${details}` : ''}`
+        : `${baseMessage}${details ? ` — ${details}` : ''}`
+
     return Promise.reject(new Error(message))
   }
 )

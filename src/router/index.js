@@ -10,6 +10,18 @@ const routes = [
     meta: { guestOnly: true }
   },
   {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/ForgotPasswordView.vue'),
+    meta: { guestOnly: true, transition: 'slide' }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/ResetPasswordView.vue'),
+    meta: { guestOnly: true, transition: 'slide' }
+  },
+  {
     path: '/register',
     name: 'Register',
     component: () => import('@/views/RegisterView.vue'),

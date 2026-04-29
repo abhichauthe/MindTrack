@@ -59,6 +59,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginWithOtp(payload) {
+    loading.value = true
+    error.value   = null
+    try {
+      const { data } = await authService.verifyOtp(payload)
+      persistUser(data)
+      return data
+    } catch (e) {
+      error.value = e.message
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   function logout() {
     user.value = null
     localStorage.removeItem(STORAGE_KEY)
@@ -71,6 +86,6 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user, loading, error,
     isLoggedIn, userId, username,
-    loadFromStorage, register, login, logout, clearError
+    loadFromStorage, register, login, loginWithOtp, logout, clearError
   }
 })

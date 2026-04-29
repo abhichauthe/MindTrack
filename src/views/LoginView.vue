@@ -20,12 +20,19 @@
         ✅ Account created successfully! Please sign in to continue.
       </div>
 
+      <div v-if="passwordUpdated" class="alert alert-success" style="margin-bottom:16px">
+        ✅ Password updated. Please sign in.
+      </div>
+
       <!-- Error alert -->
       <div v-if="authStore.error" class="alert alert-error" style="margin-bottom:16px">
         {{ authStore.error }}
       </div>
 
-      <form @submit.prevent="handleLogin" class="auth-form">
+      <form
+        @submit.prevent="handleLogin"
+        class="auth-form"
+      >
         <div class="form-group">
           <label class="form-label">Email</label>
           <input
@@ -35,6 +42,7 @@
             placeholder="you@example.com"
             required
             autocomplete="email"
+            :disabled="authStore.loading"
           />
         </div>
 
@@ -47,8 +55,17 @@
             placeholder="••••••••"
             required
             autocomplete="current-password"
+            :disabled="authStore.loading"
           />
         </div>
+
+        <RouterLink
+          to="/forgot-password"
+          class="text-accent text-sm"
+          style="align-self:flex-end; margin-top:-6px"
+        >
+          Forgot Password?
+        </RouterLink>
 
         <button
           type="submit"
@@ -82,6 +99,7 @@ const form = reactive({ email: '', password: '' })
 
 // ✅ Shows success banner if redirected from registration
 const justRegistered = computed(() => route.query.registered === 'true')
+const passwordUpdated = computed(() => route.query.passwordUpdated === 'true')
 
 async function handleLogin() {
   authStore.clearError()

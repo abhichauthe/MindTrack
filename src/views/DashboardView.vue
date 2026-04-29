@@ -20,7 +20,6 @@
           <div class="stat-label">Completion</div>
         </div>
         <div class="stats-bar-right">
-          <!-- Theme toggle lives here -->
           <button
             class="theme-toggle"
             @click="toggleTheme"
@@ -103,18 +102,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { useHabitsStore } from '@/store/habits'
+import { useTheme } from '@/composables/useTheme'
 import AppSidebar from '@/components/AppSidebar.vue'
 import HabitCard from '@/components/HabitCard.vue'
-import { useTheme } from '@/composables/useTheme'
 
 const authStore   = useAuthStore()
 const habitsStore = useHabitsStore()
 
 const { isDark, toggleTheme } = useTheme()
-
 
 // ── Modal ─────────────────────────────────────────────────────────────
 const showAddModal   = ref(false)
@@ -160,6 +158,49 @@ onMounted(() => {
 })
 </script>
 
+<!-- Global theme variables — not scoped so they apply to :root and [data-theme="dark"] -->
+<style>
+/* ── Light (default) ─────────────────────────────────────────────────── */
+:root {
+  --bg:             #ffffff;
+  --bg-card:        #f9f9f9;
+  --bg-hover:       #f0f0f0;
+  --text-primary:   #111111;
+  --text-secondary: #555555;
+  --text-muted:     #999999;
+  --border:         #e0e0e0;
+  --border-light:   #cccccc;
+  --accent:         #6366f1;
+  --green:          #22c55e;
+  --red:            #ef4444;
+  --radius:         10px;
+  --radius-sm:      6px;
+  --font-display:   'Inter', sans-serif;
+  --font-mono:      'JetBrains Mono', monospace;
+  --transition:     0.18s ease;
+  --shadow-sm:      0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg:      0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Dark ────────────────────────────────────────────────────────────── */
+/* useTheme.js sets data-theme="dark" on <html> — selector must match exactly */
+[data-theme="dark"] {
+  --bg:             #0f0f0f;
+  --bg-card:        #1a1a1a;
+  --bg-hover:       #222222;
+  --text-primary:   #f1f1f1;
+  --text-secondary: #a0a0a0;
+  --text-muted:     #555555;
+  --border:         #2a2a2a;
+  --border-light:   #333333;
+  --shadow-sm:      0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg:      0 20px 60px rgba(0, 0, 0, 0.6);
+  --accent:         #6366f1;
+  --green:          #22c55e;
+  --red:            #ef4444;
+}
+</style>
+
 <style scoped>
 /* ── Layout ──────────────────────────────────────────────────────────── */
 .dashboard { display: flex; min-height: 100vh; background: var(--bg); }
@@ -176,7 +217,9 @@ onMounted(() => {
   padding: 20px 24px;
   margin-bottom: 32px;
   position: relative;
-  overflow: hidden;
+  /* FIX: removed overflow:hidden — it was clipping the toggle button's
+     focus ring and could interfere with Teleport'd children. The
+     progress bar now uses border-radius on the wrapper instead. */
   box-shadow: var(--shadow-sm);
 }
 
@@ -210,19 +253,27 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* Right side of stats bar — pushes toggle to the far right */
+/* Right side — pushes toggle to far right */
 .stats-bar-right {
   margin-left: auto;
   display: flex;
   align-items: center;
+  /* FIX: ensure the toggle is above the absolutely-positioned progress bar */
+  position: relative;
+  z-index: 1;
 }
 
 /* Progress bar at bottom of stats */
 .progress-bar-wrap {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: 3px;
   background: var(--border);
+  /* FIX: clip only the bar, not the whole card */
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
 }
 .progress-bar {
   height: 100%;
@@ -247,13 +298,15 @@ onMounted(() => {
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
+  /* FIX: prevent the button from shrinking when the flex container is tight */
+  flex-shrink: 0;
 }
 .theme-toggle:hover {
   border-color: var(--border-light);
   color: var(--text-primary);
   background: var(--bg);
 }
-.theme-toggle-icon { font-size: 14px; line-height: 1; }
+.theme-toggle-icon  { font-size: 14px; line-height: 1; }
 .theme-toggle-label { font-size: 11px; letter-spacing: 0.02em; }
 
 /* ── Section header ──────────────────────────────────────────────────── */
@@ -334,7 +387,7 @@ onMounted(() => {
   font-family: var(--font-display);
   transition: all var(--transition);
 }
-.btn-primary:hover   { filter: brightness(1.08); }
+.btn-primary:hover    { filter: brightness(1.08); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-ghost {
@@ -355,13 +408,8 @@ onMounted(() => {
   background: var(--bg-hover);
 }
 
-.btn-sm { padding: 6px 14px; font-size: 12px; }
-
-.btn-icon {
-  width: 32px; height: 32px;
-  padding: 0;
-  display: flex; align-items: center; justify-content: center;
-}
+.btn-sm   { padding: 6px 14px; font-size: 12px; }
+.btn-icon { width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; }
 
 /* Spinner */
 .spinner {
@@ -411,7 +459,7 @@ onMounted(() => {
   font-family: var(--font-display);
 }
 
-.modal-form   { display: flex; flex-direction: column; gap: 16px; }
+.modal-form    { display: flex; flex-direction: column; gap: 16px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 
 /* Form */
@@ -441,5 +489,5 @@ onMounted(() => {
 
 /* Modal transition */
 .modal-enter-active, .modal-leave-active { transition: all 0.2s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.97) translateY(6px); }
+.modal-enter-from, .modal-leave-to       { opacity: 0; transform: scale(0.97) translateY(6px); }
 </style>
