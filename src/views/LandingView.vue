@@ -12,6 +12,7 @@
         <a href="#system" class="nav-link">System</a>
         <a href="#product" class="nav-link">Product</a>
         <a href="#faq" class="nav-link">FAQ</a>
+        <a href="#owner" class="nav-link">Contact</a>
       </div>
 
       <div class="nav-actions">
@@ -252,6 +253,76 @@
       </div>
     </section>
 
+    <!-- ================= OWNER / CONTACT (FOUNDER SECTION) ================= -->
+    <section class="section owner-section" id="owner">
+      <div class="owner-card">
+        <div class="owner-glow" aria-hidden="true"></div>
+
+        <div class="owner-main">
+          <div class="owner-avatar">AC</div>
+
+          <div class="owner-text">
+            <div class="owner-eyebrow mono">BUILT BY THE PERSON BEHIND MINDTRACK</div>
+            <h2 class="owner-name">Abhishek Chauthe</h2>
+            <div class="owner-tagline">Founder &amp; Creator of MindTrack · Software Engineer</div>
+
+            <p class="owner-role">
+              MindTrack is an independent product — conceptualized, designed, and
+              built end-to-end by Abhishek to help people build real focus,
+              discipline, and consistent habits around the goals that matter to them.
+            </p>
+
+            <div class="owner-location mono">
+              📍 Pune, Maharashtra, India &nbsp;·&nbsp; Built with ❤️
+            </div>
+          </div>
+        </div>
+
+        <div class="owner-contact">
+          <a href="mailto:chautheabhishek@gmail.com" class="owner-link" title="Email">
+            <svg class="owner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 6-10 7L2 6" />
+            </svg>
+            <span>
+              <span class="owner-link-label mono">EMAIL</span>
+              <span class="owner-link-value">chautheabhishek@gmail.com</span>
+            </span>
+          </a>
+
+          <a href="https://github.com/abhichauthe" target="_blank" rel="noopener noreferrer" class="owner-link" title="GitHub">
+            <svg class="owner-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 .5C5.73.5.75 5.48.75 11.75c0 5.02 3.26 9.28 7.78 10.78.57.1.78-.25.78-.55v-1.94c-3.16.69-3.83-1.52-3.83-1.52-.52-1.31-1.26-1.66-1.26-1.66-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.74 2.65 1.24 3.3.95.1-.73.4-1.24.72-1.53-2.52-.29-5.17-1.26-5.17-5.6 0-1.24.44-2.25 1.17-3.04-.12-.29-.51-1.46.11-3.03 0 0 .96-.31 3.14 1.16a10.9 10.9 0 0 1 5.72 0c2.18-1.47 3.14-1.16 3.14-1.16.62 1.57.23 2.74.11 3.03.73.79 1.17 1.8 1.17 3.04 0 4.35-2.65 5.31-5.18 5.59.41.35.77 1.04.77 2.1v3.11c0 .3.21.65.79.55A11.26 11.26 0 0 0 23.25 11.75C23.25 5.48 18.27.5 12 .5Z" />
+            </svg>
+            <span>
+              <span class="owner-link-label mono">GITHUB</span>
+              <span class="owner-link-value">github.com/abhichauthe</span>
+            </span>
+          </a>
+
+          <a href="https://leetcode.com/u/chautheabhishek/" target="_blank" rel="noopener noreferrer" class="owner-link" title="LeetCode">
+            <svg class="owner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" />
+            </svg>
+            <span>
+              <span class="owner-link-label mono">LEETCODE</span>
+              <span class="owner-link-value">chautheabhishek</span>
+            </span>
+          </a>
+
+          <a href="https://linkedin.com/in/abhishek-chauthe" target="_blank" rel="noopener noreferrer" class="owner-link" title="LinkedIn">
+            <svg class="owner-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.03-1.85-3.03-1.85 0-2.14 1.45-2.14 2.94v5.66H9.36V9h3.41v1.56h.05c.47-.9 1.63-1.85 3.36-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29ZM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12ZM7.11 20.45H3.56V9h3.55v11.45Z" />
+            </svg>
+            <span>
+              <span class="owner-link-label mono">LINKEDIN</span>
+              <span class="owner-link-value">abhishek-chauthe</span>
+            </span>
+          </a>
+        </div>
+      </div>
+    </section>
+
     <!-- ================= FINAL CTA ================= -->
     <section class="cta-section">
       <h2>Ready to take control of your progress?</h2>
@@ -265,7 +336,10 @@
     <!-- ================= FOOTER ================= -->
     <footer class="footer">
       <span class="mono text-muted">MindTrack</span>
-      <span class="text-muted">Built for people who want to improve consistently.</span>
+      <span class="text-muted">
+        Built for people who want to improve consistently — by
+        <a href="#owner" class="footer-owner-link">Abhishek Chauthe</a>
+      </span>
     </footer>
 
   </div>
@@ -969,6 +1043,140 @@ function toggleFaq(i) {
   padding: 0 18px 16px;
 }
 
+/* ================= OWNER / FOUNDER SECTION ================= */
+.owner-card {
+  position: relative;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 44px;
+  border-radius: 20px;
+  background: var(--bg-hover, #131318);
+  border: 1px solid var(--border, #1f1f27);
+  overflow: hidden;
+}
+
+.owner-glow {
+  position: absolute;
+  top: -100px;
+  left: -80px;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(124, 106, 247, 0.18) 0%, rgba(124, 106, 247, 0) 70%);
+  pointer-events: none;
+}
+
+.owner-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  margin-bottom: 28px;
+}
+
+.owner-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #a396ff, #7c6af7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 12px 26px -10px rgba(124, 106, 247, 0.6);
+}
+
+.owner-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--accent, #7c6af7);
+  margin-bottom: 8px;
+}
+
+.owner-name {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.owner-tagline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent, #7c6af7);
+  margin-bottom: 12px;
+}
+
+.owner-role {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-secondary, #a3a3af);
+  max-width: 560px;
+}
+
+.owner-location {
+  margin-top: 14px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #6b6b76);
+}
+
+.owner-contact {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.owner-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #1f1f27);
+  background: var(--bg, #0b0b0f);
+  text-decoration: none;
+  color: var(--text-primary, #e6e6e6);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.owner-link:hover {
+  border-color: rgba(124, 106, 247, 0.5);
+  transform: translateY(-2px);
+}
+
+.owner-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--accent, #7c6af7);
+}
+
+.owner-link-label {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted, #6b6b76);
+  margin-bottom: 2px;
+}
+
+.owner-link-value {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .owner-card { padding: 28px; }
+  .owner-main { flex-direction: column; gap: 16px; }
+  .owner-contact { grid-template-columns: 1fr; }
+}
+
 /* CTA */
 .cta-section {
   text-align: center;
@@ -992,6 +1200,15 @@ function toggleFaq(i) {
   font-size: 13px;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.footer-owner-link {
+  color: var(--accent, #7c6af7);
+  text-decoration: none;
+}
+
+.footer-owner-link:hover {
+  text-decoration: underline;
 }
 
 /* Buttons */
