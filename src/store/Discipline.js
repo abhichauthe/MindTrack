@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { disciplineService } from '@/services/disciplineService'
+import { disciplineService } from '@/services/Disciplineservice'
 
 export const useDisciplineStore = defineStore('discipline', () => {
 
