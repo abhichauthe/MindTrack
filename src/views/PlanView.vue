@@ -365,7 +365,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import { usePlanStore } from '@/store/plan'
-import { useDisciplineStore } from '@/store/discipline'
+import { useDisciplineStore } from '@/store/Discipline'
 
 const store           = usePlanStore()
 const disciplineStore = useDisciplineStore()
