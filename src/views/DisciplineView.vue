@@ -191,7 +191,7 @@
 import { ref, computed, onMounted } from 'vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import DisciplineWizard from '@/components/DisciplineWizard.vue'
-import { useDisciplineStore } from '@/store/discipline'
+import { useDisciplineStore } from '@/store/Discipline'
 
 const store = useDisciplineStore()
 
