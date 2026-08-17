@@ -18,13 +18,19 @@ const routes = [
     path: '/forgot-password',
     name: 'ForgotPassword',
     component: () => import('@/views/ForgotPasswordView.vue'),
-    meta: { guestOnly: true, transition: 'slide' }
+    meta: {
+      guestOnly: true,
+      transition: 'slide'
+    }
   },
   {
     path: '/reset-password',
     name: 'ResetPassword',
     component: () => import('@/views/ResetPasswordView.vue'),
-    meta: { guestOnly: true, transition: 'slide' }
+    meta: {
+      guestOnly: true,
+      transition: 'slide'
+    }
   },
   {
     path: '/register',
@@ -55,7 +61,7 @@ const routes = [
   {
     path: '/timetable',
     name: 'Timetable',
-    component: () => import('@/views/TimetableView.vue'),
+    component: () => import('@/views/Timetableview.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -112,13 +118,13 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isLoggedIn = authStore.isLoggedIn
 
-  // User is trying to access a protected page without login
+  // Protected route without authentication
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' })
     return
   }
 
-  // Logged-in user tries to access login/register pages
+  // Logged-in user trying to access login/register
   if (to.meta.guestOnly && isLoggedIn) {
     next({ name: 'Dashboard' })
     return
