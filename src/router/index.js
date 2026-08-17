@@ -50,7 +50,7 @@ const routes = [
   {
     path: '/timetable',
     name: 'Timetable',
-    component: () => import('@/views/TimetableView.vue'),
+    component: () => import('@/views/Timetableview.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -71,9 +71,25 @@ const routes = [
     component: () => import('@/views/NotificationsView.vue'),
     meta: { requiresAuth: true }
   },
-  { path: '/discipline', name: 'Discipline', component: () => import('@/views/DisciplineView.vue'), meta: { requiresAuth: true } },
+  {
+    path: '/discipline',
+    name: 'Discipline',
+    component: () => import('@/views/DisciplineView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/plan',
+    name: 'Plan',
+    component: () => import('@/views/PlanView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    component: () => import('@/views/AnalyticsView.vue'),
+    meta: { requiresAuth: true }
+  },
 
-  { path: '/plan', name: 'Plan', component: () => import('@/views/PlanView.vue'), meta: { requiresAuth: true } },
   // ── Default redirect ───────────────────────────────────────────────
   {
     path: '/',
@@ -82,9 +98,7 @@ const routes = [
   {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard'
-  },
-  { path: '/analytics', name: 'Analytics', component: () => import('@/views/AnalyticsView.vue'), meta: { requiresAuth: true } },
-
+  }
 ]
 
 const router = createRouter({
@@ -94,7 +108,7 @@ const router = createRouter({
 
 // ── Navigation guards ─────────────────────────────────────────────────
 router.beforeEach((to, from, next) => {
-  const authStore  = useAuthStore()
+  const authStore = useAuthStore()
   const isLoggedIn = authStore.isLoggedIn
 
   if (to.meta.requiresAuth && !isLoggedIn) {
