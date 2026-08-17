@@ -1,11 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
+
 const routes = [
   // ── Public routes ──────────────────────────────────────────────────
   {
     path: '/',
     name: 'Landing',
-    component: () => import('@/views/LandingView.vue'),
+    component: () => import('@/views/LandingView.vue')
   },
   {
     path: '/login',
@@ -31,6 +32,7 @@ const routes = [
     component: () => import('@/views/RegisterView.vue'),
     meta: { guestOnly: true }
   },
+
   // ── Protected routes ───────────────────────────────────────────────
   {
     path: '/dashboard',
@@ -74,31 +76,55 @@ const routes = [
     component: () => import('@/views/NotificationsView.vue'),
     meta: { requiresAuth: true }
   },
-  { path: '/discipline', name: 'Discipline', component: () => import('@/views/DisciplineView.vue'), meta: { requiresAuth: true } },
-  { path: '/plan', name: 'Plan', component: () => import('@/views/PlanView.vue'), meta: { requiresAuth: true } },
-  // ── Default redirect ───────────────────────────────────────────────
+  {
+    path: '/discipline',
+    name: 'Discipline',
+    component: () => import('@/views/DisciplineView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/plan',
+    name: 'Plan',
+    component: () => import('@/views/PlanView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    component: () => import('@/views/AnalyticsView.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // ── Unknown routes ─────────────────────────────────────────────────
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
-  },
-  { path: '/analytics', name: 'Analytics', component: () => import('@/views/AnalyticsView.vue'), meta: { requiresAuth: true } },
+    redirect: '/'
+  }
 ]
+
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
+
 // ── Navigation guards ─────────────────────────────────────────────────
 router.beforeEach((to, from, next) => {
-  const authStore  = useAuthStore()
+  const authStore = useAuthStore()
   const isLoggedIn = authStore.isLoggedIn
+
+  // User is trying to access a protected page without login
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' })
     return
   }
+
+  // Logged-in user tries to access login/register pages
   if (to.meta.guestOnly && isLoggedIn) {
     next({ name: 'Dashboard' })
     return
   }
+
   next()
 })
+
 export default router
