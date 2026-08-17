@@ -1,8 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
-
 const routes = [
   // ── Public routes ──────────────────────────────────────────────────
+  {
+    path: '/',
+    name: 'Landing',
+    component: () => import('@/views/LandingView.vue'),
+  },
   {
     path: '/login',
     name: 'Login',
@@ -27,7 +31,6 @@ const routes = [
     component: () => import('@/views/RegisterView.vue'),
     meta: { guestOnly: true }
   },
-
   // ── Protected routes ───────────────────────────────────────────────
   {
     path: '/dashboard',
@@ -50,7 +53,7 @@ const routes = [
   {
     path: '/timetable',
     name: 'Timetable',
-    component: () => import('@/views/Timetableview.vue'),
+    component: () => import('@/views/TimetableView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -71,57 +74,31 @@ const routes = [
     component: () => import('@/views/NotificationsView.vue'),
     meta: { requiresAuth: true }
   },
-  {
-    path: '/discipline',
-    name: 'Discipline',
-    component: () => import('@/views/DisciplineView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/plan',
-    name: 'Plan',
-    component: () => import('@/views/PlanView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/analytics',
-    name: 'Analytics',
-    component: () => import('@/views/AnalyticsView.vue'),
-    meta: { requiresAuth: true }
-  },
-
+  { path: '/discipline', name: 'Discipline', component: () => import('@/views/DisciplineView.vue'), meta: { requiresAuth: true } },
+  { path: '/plan', name: 'Plan', component: () => import('@/views/PlanView.vue'), meta: { requiresAuth: true } },
   // ── Default redirect ───────────────────────────────────────────────
-  {
-    path: '/',
-    redirect: '/dashboard'
-  },
   {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard'
-  }
+  },
+  { path: '/analytics', name: 'Analytics', component: () => import('@/views/AnalyticsView.vue'), meta: { requiresAuth: true } },
 ]
-
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
 // ── Navigation guards ─────────────────────────────────────────────────
 router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore()
+  const authStore  = useAuthStore()
   const isLoggedIn = authStore.isLoggedIn
-
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' })
     return
   }
-
   if (to.meta.guestOnly && isLoggedIn) {
     next({ name: 'Dashboard' })
     return
   }
-
   next()
 })
-
 export default router
