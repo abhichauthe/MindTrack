@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: 'https://mindtrack-backend-0lfs.onrender.com/api',
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -27,14 +27,12 @@ apiClient.interceptors.response.use(
   (err) => {
     const status = err.response?.status
     const data = err.response?.data
-
     // Many backends return { message, errors } (not { error }).
     const baseMessage =
       data?.error ||
       data?.message ||
       err.message ||
       'Something went wrong'
-
     let details = ''
     if (data?.errors && typeof data.errors === 'object') {
       try {
@@ -43,12 +41,10 @@ apiClient.interceptors.response.use(
           .join(' | ')
       } catch (_) {}
     }
-
     const message =
       status
         ? `[${status}] ${baseMessage}${details ? ` — ${details}` : ''}`
         : `${baseMessage}${details ? ` — ${details}` : ''}`
-
     return Promise.reject(new Error(message))
   }
 )
